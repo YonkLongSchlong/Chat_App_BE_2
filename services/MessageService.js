@@ -1,5 +1,6 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import { getReceiverSocketId, io } from "../utils/socket.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
 export const sendMessageService = async (user, receiverId, message) => {
@@ -55,6 +56,11 @@ export const sendMessageService = async (user, receiverId, message) => {
     return { status: 500, msg: "Fail to send message" };
   });
 
+  const receiverSocketId = getReceiverSocketId(receiverId);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("newMessage", newMessage);
+  }
+
   return {
     status: 200,
     msg: { conversation },
@@ -65,7 +71,7 @@ export const sendMessageService = async (user, receiverId, message) => {
 export const getMessageService = async (user, userToChatId) => {
   const userId = user._id;
 
-  /* Tìm cuộc trò chuyện của 2 người */
+  /* Tìm cuộc trò chuyện và tin nhắn của 2 người */
   const conversation = await Conversation.findOne({
     participants: {
       $all: [userId, userToChatId],
@@ -80,11 +86,9 @@ export const getMessageService = async (user, userToChatId) => {
     };
   }
 
-  /* Nếu tìm thấy fetch tiếp các tin nhắn trong cuộc trò chuyện
-     Trả về các tin nhắn đó
-  */
+  /* Nếu tìm thấy trả về cuộc trò chuyện và lấy tin nhắn ra trên FE */
   return {
     status: 200,
-    msg: conversation.messages,
+    msg: conversation,
   };
 };

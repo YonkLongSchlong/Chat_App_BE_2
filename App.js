@@ -7,9 +7,9 @@ import friendsRoute from "./routes/FriendsRoute.js";
 import messagesRoute from "./routes/MessagesRoute.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-
+import { app, server } from "./utils/socket.js";
 /* ---------- CONFIG ---------- */
-const app = express();
+
 dotenv.config();
 app.use(express.json({ limit: "30mb", extended: true }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
@@ -32,7 +32,7 @@ app.use("/messages", messagesRoute);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(
-    app.listen(process.env.PORT, () => {
+    server.listen(process.env.PORT, () => {
       console.log("Listening on port " + process.env.PORT);
     })
   )

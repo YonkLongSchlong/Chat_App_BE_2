@@ -123,7 +123,6 @@ export const uploadAvatarService = async (
     ContentType: contentType,
   };
   const data = await s3.upload(s3_params).promise();
-  console.log("Here");
   user.avatar = data.Location;
   user.save();
   return {
