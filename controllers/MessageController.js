@@ -1,4 +1,5 @@
 import {
+  getConversationsService,
   getMessageService,
   sendMessageService,
 } from "../services/MessageService.js";
@@ -34,4 +35,19 @@ const getMessages = async (req, res) => {
   }
 };
 
-export { sendMessage, getMessages };
+/* ---------- GET CONVERSATIONS ---------- */
+const getConversations = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const response = await getConversationsService(user, id);
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ Error: "Error in getting conversations", msg: error.message });
+  }
+};
+
+export { sendMessage, getMessages, getConversations };

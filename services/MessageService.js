@@ -1,6 +1,7 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { getReceiverSocketId, io } from "../utils/socket.js";
+import User from "../models/User.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
 export const sendMessageService = async (user, receiverId, message) => {
@@ -9,14 +10,18 @@ export const sendMessageService = async (user, receiverId, message) => {
      Lưu tin nhắn vào conversation 
   */
   const senderId = user._id;
+
   const conversation = await Conversation.findOne({
     participants: {
       $all: [senderId, receiverId],
     },
   });
+
   if (!conversation) {
+    const receiver = await User.findById(receiverId);
     const result = await Promise.all([
       Conversation.create({
+        name: receiver.username,
         participants: [senderId, receiverId],
       }),
       Message.create({
@@ -34,7 +39,6 @@ export const sendMessageService = async (user, receiverId, message) => {
     const conversation = result[0];
     const newMessage = result[1];
 
-    console.log(conversation.messages);
     conversation.messages.push(newMessage._id);
     await Promise.all([conversation.save(), newMessage.save()]);
     return {
@@ -63,7 +67,7 @@ export const sendMessageService = async (user, receiverId, message) => {
 
   return {
     status: 200,
-    msg: { conversation },
+    msg: { conversation, newMessage },
   };
 };
 
@@ -89,6 +93,34 @@ export const getMessageService = async (user, userToChatId) => {
   /* Nếu tìm thấy trả về cuộc trò chuyện và lấy tin nhắn ra trên FE */
   return {
     status: 200,
-    msg: conversation,
+    msg: conversation.messages,
+  };
+};
+
+/* ---------- GET CONVERSATIONS SERVICE ---------- */
+export const getConversationsService = async (user, id) => {
+  if (user._id.toString() !== id) {
+    return {
+      status: 401,
+      msg: "User not verified",
+    };
+  }
+
+  const conversations = await Conversation.find({
+    participants: {
+      $in: [user._id],
+    },
+  }).populate("participants messages");
+
+  if (!conversations) {
+    return {
+      status: 200,
+      msg: [],
+    };
+  }
+
+  return {
+    status: 200,
+    msg: conversations,
   };
 };
