@@ -1,6 +1,7 @@
 import {
   getConversationsService,
   getMessageService,
+  sendImageService,
   sendMessageService,
 } from "../services/MessageService.js";
 
@@ -9,10 +10,38 @@ const sendMessage = async (req, res) => {
   try {
     const { receiverId } = req.params;
     const user = req.user;
-    const { message } = req.body;
+    const { message, conversationName } = req.body;
 
-    const response = await sendMessageService(user, receiverId, message);
+    const response = await sendMessageService(
+      user,
+      receiverId,
+      message,
+      conversationName
+    );
     return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(404)
+      .json({ Error: "Error in send message", msg: error.message });
+  }
+};
+
+/* ---------- SEND IMAGE ---------- */
+const sendImage = async (req, res) => {
+  try {
+    const { receiverId } = req.params;
+    const user = req.user;
+    const files = req.files;
+    const { conversationName } = req.body;
+
+    const response = await sendImageService(
+      user,
+      receiverId,
+      files,
+      conversationName
+    );
+    console.log(response.msg);
+    res.status(response.status).json(response.msg);
   } catch (error) {
     return res
       .status(404)
@@ -50,4 +79,4 @@ const getConversations = async (req, res) => {
   }
 };
 
-export { sendMessage, getMessages, getConversations };
+export { sendMessage, sendImage, getMessages, getConversations };

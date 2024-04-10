@@ -1,61 +1,45 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
-import { getReceiverSocketId, io } from "../utils/socket.js";
+import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 import User from "../models/User.js";
+import { s3 } from "../utils/configAWS.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
-export const sendMessageService = async (user, receiverId, message) => {
+export const sendMessageService = async (
+  user,
+  receiverId,
+  message,
+  conversationName
+) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa
      Nếu chưa tạo 1 conversation mới và tin nhắn mới 
      Lưu tin nhắn vào conversation 
   */
   const senderId = user._id;
-
-  const conversation = await Conversation.findOne({
+  let conversation = await Conversation.findOne({
     participants: {
       $all: [senderId, receiverId],
     },
   });
 
   if (!conversation) {
-    const receiver = await User.findById(receiverId);
-    const result = await Promise.all([
-      Conversation.create({
-        name: receiver.username,
-        participants: [senderId, receiverId],
-      }),
-      Message.create({
-        senderId,
-        receiverId,
-        message,
-      }),
-    ]).catch((error) => {
-      return {
-        status: 500,
-        msg: "Failed to create conversation",
-      };
+    conversation = await Conversation.create({
+      name: conversationName,
+      participants: [senderId, receiverId],
     });
-
-    const conversation = result[0];
-    const newMessage = result[1];
-
-    conversation.messages.push(newMessage._id);
-    await Promise.all([conversation.save(), newMessage.save()]);
-    return {
-      status: 200,
-      msg: { newMessage, conversation },
-    };
   }
 
-  /* Nếu conversation đã tồn tại thì tạo 1 tin nhắn mới
-     Lưu tin nhắn vào conversation
-  */
   const newMessage = new Message({
     senderId,
     receiverId,
+    messageType: "text",
     message,
   });
-  conversation.messages.push(newMessage);
+
+  if (newMessage) {
+    conversation.messages.push(newMessage._id);
+  }
+
   await Promise.all([conversation.save(), newMessage.save()]).catch((error) => {
     return { status: 500, msg: "Fail to send message" };
   });
@@ -68,6 +52,92 @@ export const sendMessageService = async (user, receiverId, message) => {
   return {
     status: 200,
     msg: { conversation, newMessage },
+  };
+};
+
+/* ---------- SEND IMAGE SERVICE ---------- */
+export const sendImageService = async (
+  user,
+  receiverId,
+  files,
+  conversationName
+) => {
+  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa
+     Nếu chưa tạo 1 conversation mới và tin nhắn mới 
+     Lưu tin nhắn vào conversation 
+  */
+  const senderId = user._id;
+  let conversation = await Conversation.findOne({
+    participants: {
+      $all: [senderId, receiverId],
+    },
+  });
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      name: conversationName,
+      participants: [senderId, receiverId],
+    });
+  }
+
+  /* Upload ảnh lên s3 */
+  function uploadToS3(file) {
+    const s3_params = {
+      Bucket: process.env.S3_IMAGE_MESSAGE_BUCKET,
+      Key: file.originalname + "1",
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+    return s3.upload(s3_params).promise();
+  }
+  const promiseUpload = [];
+  files.forEach((file) => {
+    promiseUpload.push(uploadToS3(file));
+  });
+  const resultUpload = await Promise.all(promiseUpload).catch(() => {
+    return {
+      status: 500,
+      msg: "Failed to send images",
+    };
+  });
+
+  /* Tạo và lưu messages */
+  function saveMessage(result) {
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      messageType: "image",
+      message: result.Location,
+    });
+    return newMessage.save();
+  }
+  const promiseMessage = [];
+  resultUpload.forEach((result) => {
+    promiseMessage.push(saveMessage(result));
+  });
+  const resultMessage = await Promise.all(promiseMessage).catch(() => {
+    return {
+      status: 500,
+      msg: "Failed to save message",
+    };
+  });
+
+  /* Đẩy messages ID vào conversation */
+  if (resultMessage) {
+    resultMessage.forEach((result) => {
+      conversation.messages.push(result._id);
+    });
+  }
+  await conversation.save();
+
+  const receiverSocketId = getReceiverSocketId(receiverId);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("newImages", resultMessage);
+  }
+
+  return {
+    status: 200,
+    msg: { resultMessage },
   };
 };
 

@@ -117,7 +117,7 @@ export const uploadAvatarService = async (
     };
   }
   const s3_params = {
-    Bucket: process.env.S3_BUCKET_NAME,
+    Bucket: process.env.S3_AVATAR_BUCKET,
     Key: fileName,
     Body: file,
     ContentType: contentType,
