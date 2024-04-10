@@ -6,6 +6,7 @@ import {
   getUsersByPhonesService,
   uploadAvatarService,
   updateProfileService,
+  getUserByPhoneService,
 } from "../services/UserService.js";
 
 /* ---------- UPDATE USER PROFILE ---------- */
@@ -148,6 +149,13 @@ const getUsersByPhones = async (req, res) => {
   }
 };
 
+const findUserByPhone = async (req, res) => {
+  const user = req.user;
+  const { phone } = req.body;
+  const response = await getUserByPhoneService(user, phone);
+  return res.status(response.status).json(response.msg);
+};
+
 export {
   updateBio,
   updatePhoneNumber,
@@ -157,4 +165,5 @@ export {
   getUsersByPhones,
   uploadAvatar,
   updateProfile,
+  findUserByPhone,
 };

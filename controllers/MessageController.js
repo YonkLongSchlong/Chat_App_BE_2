@@ -32,6 +32,7 @@ const sendImage = async (req, res) => {
     const { receiverId } = req.params;
     const user = req.user;
     const files = req.files;
+    console.log(files);
     const { conversationName } = req.body;
 
     const response = await sendImageService(

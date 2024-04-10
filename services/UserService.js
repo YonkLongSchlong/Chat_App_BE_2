@@ -153,3 +153,22 @@ export const getUsersByPhonesService = async (user, id, phones) => {
     msg: "No contacts found using this app",
   };
 };
+
+/* ---------- FIND USER BY PHONE SERVICE---------- */
+export const getUserByPhoneService = async (user, phone) => {
+  const userByPhone = await User.findOne({ phone: phone });
+
+  if (!userByPhone) {
+    return {
+      status: 404,
+      msg: "User not found",
+    };
+  }
+
+  delete userByPhone.password;
+
+  return {
+    status: 200,
+    msg: userByPhone,
+  };
+};

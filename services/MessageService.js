@@ -82,9 +82,13 @@ export const sendImageService = async (
 
   /* Upload ảnh lên s3 */
   function uploadToS3(file) {
+    const image = file.originalname.split(".");
+    console.log(image);
+    const fileType = image[image.length - 1];
+    const fileName = `${senderId}_${Date.now().toString()}.${fileType}`;
     const s3_params = {
       Bucket: process.env.S3_IMAGE_MESSAGE_BUCKET,
-      Key: file.originalname + "1",
+      Key: fileName,
       Body: file.buffer,
       ContentType: file.mimetype,
     };

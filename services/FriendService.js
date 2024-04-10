@@ -6,8 +6,15 @@ export const friendRequestService = async (user, id, recipentId) => {
   /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
   if (id !== user._id.toString()) {
     return {
-      status: 403,
+      status: 401,
       msg: "User not verified",
+    };
+  }
+
+  if (id === recipentId) {
+    return {
+      status: 400,
+      msg: "You can't send a friend request to yourself",
     };
   }
 
@@ -20,15 +27,24 @@ export const friendRequestService = async (user, id, recipentId) => {
     };
   }
 
-  /* Nếu user đã gửi lời mời trả về 203 */
   const checkFriendShip = await FriendRequest.findOne({
     requester: user._id.toString(),
     recipent: recipentId,
   });
-  if (checkFriendShip) {
+
+  /* Nếu user đã gửi lời mời */
+  if (checkFriendShip && checkFriendShip.status == 1) {
     return {
-      status: 203,
-      msg: "Request was already exist",
+      status: 400,
+      msg: "Request was already sent",
+    };
+  }
+
+  /* Nếu user đã kết bạn */
+  if (checkFriendShip && checkFriendShip.status == 2) {
+    return {
+      status: 400,
+      msg: "You 2 have already been friends",
     };
   }
 
@@ -44,12 +60,64 @@ export const friendRequestService = async (user, id, recipentId) => {
   };
 };
 
+/* ---------- FRIEND REQUEST ---------- */
+export const cancelFriendRequestService = async (user, id, recipentId) => {
+  /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
+  if (id !== user._id.toString()) {
+    return {
+      status: 401,
+      msg: "User not verified",
+    };
+  }
+
+  if (id === recipentId) {
+    return {
+      status: 400,
+      msg: "You can't cancel a friend request or send it to yourself",
+    };
+  }
+
+  const friendRequest = await FriendRequest.findOne({
+    recipent: recipentId,
+    requester: id,
+  });
+  if (!friendRequest) {
+    return {
+      status: 404,
+      msg: "Friend request not found",
+    };
+  }
+  if (friendRequest.status === 2) {
+    return {
+      status: 400,
+      msg: "You 2 have already been friend",
+    };
+  }
+  console.log(friendRequest._id.toString());
+
+  const docs = await FriendRequest.findByIdAndDelete(
+    friendRequest._id.toString()
+  );
+
+  if (docs) {
+    return {
+      status: 200,
+      msg: "Friend request has been canceled",
+    };
+  }
+
+  return {
+    status: 500,
+    msg: "Failed to cancel friend request",
+  };
+};
+
 /* ---------- FRIEND ACCEPT ---------- */
 export const friendAcceptService = async (user, id, requesterId) => {
   /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
   if (id !== user._id.toString()) {
     return {
-      status: 404,
+      status: 401,
       msg: "User not verified",
     };
   }
@@ -107,7 +175,7 @@ export const getAllFriendsRequestService = async (user, id) => {
   /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
   if (id !== user._id.toString()) {
     return {
-      status: 404,
+      status: 401,
       msg: "User not verified",
     };
   }
@@ -149,6 +217,53 @@ export const getAllFriendsRequestService = async (user, id) => {
   };
 };
 
+/* ---------- GET ALL FRIEND REQUESTS SENTED---------- */
+export const getAllFriendsRequestSentedService = async (user, id) => {
+  /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
+  if (id !== user._id.toString()) {
+    return {
+      status: 401,
+      msg: "User not verified",
+    };
+  }
+
+  const response = await FriendRequest.aggregate([
+    {
+      $match: {
+        status: 1,
+        requester: user._id,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "recipent",
+        foreignField: "_id",
+        as: "recei",
+      },
+    },
+    { $unwind: "$recei" },
+    {
+      $project: {
+        "recei.password": 0,
+        recipent: 0,
+      },
+    },
+  ]);
+
+  if (response.length <= 0) {
+    return {
+      status: 404,
+      msg: "There no friend requests found",
+    };
+  }
+
+  return {
+    status: 200,
+    msg: response,
+  };
+};
+
 /* ---------- GET FRIEND LIST SERVICE---------- */
 export const getFriendsListService = async (user, id) => {
   if (id !== user._id.toString()) {
@@ -158,7 +273,12 @@ export const getFriendsListService = async (user, id) => {
     };
   }
 
-  const userWithFriends = await User.findById(id).populate("friends");
+  const userWithFriends = await User.findById(id).populate({
+    path: "friends",
+    options: {
+      sort: { username: 1 },
+    },
+  });
   return {
     status: 200,
     msg: userWithFriends.friends,
