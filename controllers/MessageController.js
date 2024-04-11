@@ -4,6 +4,8 @@ import {
   sendMessageService,
 } from "../services/MessageService.js";
 
+import Conversation from "../models/Conversation.js";
+import Message from "../models/Message.js";
 /* ---------- SEND MESSAGE ---------- */
 const sendMessage = async (req, res) => {
   try {
@@ -50,4 +52,41 @@ const getConversations = async (req, res) => {
   }
 };
 
-export { sendMessage, getMessages, getConversations };
+// Post conversation
+const createConversation = async (req, res) => {
+
+  const { userID, friendID, userName, friendName } = req.body;
+
+  try {
+    // Create a new conversation
+    const newConversation = new Conversation({
+      name: `${userName} and ${friendName}`,
+      participants: [userID, friendID],
+    });
+
+    // Save the conversation
+    const savedConversation = await newConversation.save();
+
+    // Send the response
+    return res.status(200).json(savedConversation);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ Error: "Error in creating a new conversation", msg: error.message });
+  }
+};
+// Post message
+const postMessage = async (req, res) => {
+
+  const { conversationID} = req.body;
+
+ // từ conversationID tìm ra message chứa conversationID đó
+ const messages = await Message.find({ conversationID: conversationID });
+
+ console.log("Messages:", messages);
+
+ // hiển thị message
+ return res.status(200).json(messages);
+};
+
+export { sendMessage, getMessages, getConversations,createConversation, postMessage  };

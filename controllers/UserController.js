@@ -147,6 +147,32 @@ const getUsersByPhones = async (req, res) => {
     });
   }
 };
+const getUserById = async (req, res) => {
+  const id = req.body.id;
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Get the friends of the user
+    const friends = await User.find({ _id: { $in: user.friends } });
+
+    // // Add the friends to the user object
+    // user.friends = friends;
+
+    // res.json(friends);
+    return res.status(200).json(
+      {
+        message: 'Tìm thấy danh sách bạn bè',
+        friends: friends
+      }
+    );
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 
 export {
   updateBio,
@@ -157,4 +183,5 @@ export {
   getUsersByPhones,
   uploadAvatar,
   updateProfile,
+  getUserById,
 };

@@ -9,6 +9,7 @@ import {
   findUser,
   getUsers,
   uploadAvatar,
+  getUserById,
 } from "../controllers/UserController.js";
 import { upload } from "../utils/configMulter.js";
 const router = express.Router();
@@ -21,4 +22,5 @@ router.patch("/:id/avatar", verifyToken, upload.single("image"), uploadAvatar); 
 router.post("/:id/findByPhones", verifyToken, getUsersByPhones); // Get list of users by phones
 router.get("/find/:userId", verifyToken, findUser);
 router.get("/", verifyToken, getUsers);
+router.post('/getUserbyID', getUserById);
 export default router;
