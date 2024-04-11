@@ -5,7 +5,6 @@ import express from "express";
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  pingTimeout: 60000,
   cors: ["http://localhost:5000"],
   method: ["GET", "POST", "PUT", "PATCH"],
 });

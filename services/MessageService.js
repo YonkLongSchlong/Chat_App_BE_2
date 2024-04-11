@@ -27,6 +27,25 @@ export const sendMessageService = async (
       name: conversationName,
       participants: [senderId, receiverId],
     });
+    const newMessage = await Message.create({
+      senderId,
+      receiverId,
+      messageType: "text",
+      message,
+    });
+    conversation.messages.push(newMessage._id);
+    await conversation.save();
+    const userSocketId = getUserSocketId(senderId);
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (userSocketId) {
+      io.to(userSocketId).emit("newConversation", conversation);
+      io.to(receiverSocketId).emit("newConversation", conversation);
+    }
+
+    return {
+      status: 200,
+      msg: { conversation, newMessage },
+    };
   }
 
   const newMessage = new Message({
@@ -136,12 +155,55 @@ export const sendImageService = async (
 
   const receiverSocketId = getReceiverSocketId(receiverId);
   if (receiverSocketId) {
-    io.to(receiverSocketId).emit("newImages", resultMessage);
+    io.to(receiverSocketId).emit("newMessage", resultMessage);
   }
 
   return {
     status: 200,
     msg: { resultMessage },
+  };
+};
+
+/* ---------- DELETE MESSAGE SERVICE ---------- */
+export const deleteMessageService = async (user, id, messageId) => {
+  if (user._id.toString() !== id) {
+    return {
+      status: 401,
+      msg: "User not verified",
+    };
+  }
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    return {
+      status: 404,
+      msg: "Message not found",
+    };
+  }
+
+  if (message.senderId.toString() !== id) {
+    return {
+      status: 400,
+      msg: "You dont't have permission to delete this message",
+    };
+  }
+
+  const docs = await Message.findByIdAndDelete(messageId);
+
+  if (docs) {
+    const receiverSocketId = getReceiverSocketId(docs.receiverId.toString());
+    io.to(receiverSocketId).emit("delMessage", docs);
+
+    return {
+      status: 200,
+      msg: docs,
+    };
+  }
+
+  return {
+    status: 500,
+    msg: "Deleted message Failed",
   };
 };
 
@@ -190,6 +252,32 @@ export const getConversationsService = async (user, id) => {
     return {
       status: 200,
       msg: [],
+    };
+  }
+
+  return {
+    status: 200,
+    msg: conversations,
+  };
+};
+
+/* ---------- GET CONVERSATION SERVICE ---------- */
+export const getConversationService = async (user, id, conversationId) => {
+  if (user._id.toString() !== id) {
+    return {
+      status: 401,
+      msg: "User not verified",
+    };
+  }
+
+  const conversations = await Conversation.findById(conversationId).populate(
+    "participants messages"
+  );
+
+  if (!conversations) {
+    return {
+      status: 404,
+      msg: "Conversation not found",
     };
   }
 

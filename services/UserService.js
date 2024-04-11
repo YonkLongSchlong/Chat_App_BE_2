@@ -1,5 +1,6 @@
 import bcryptjs from "bcryptjs";
 import User from "../models/User.js";
+import FriendRequest from "../models/FriendRequest.js";
 import dotenv from "dotenv";
 import { s3 } from "../utils/configAWS.js";
 
@@ -165,10 +166,23 @@ export const getUserByPhoneService = async (user, phone) => {
     };
   }
 
+  const friendRequest = await FriendRequest.findOne({
+    $or: [
+      { requester: user._id, recipent: userByPhone._id },
+      { recipent: user._id, requester: userByPhone._id },
+    ],
+  });
+  if (!friendRequest) {
+    return {
+      status: 200,
+      msg: { userByPhone },
+    };
+  }
+
   delete userByPhone.password;
 
   return {
     status: 200,
-    msg: userByPhone,
+    msg: { userByPhone, friendRequest },
   };
 };

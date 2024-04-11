@@ -60,7 +60,7 @@ export const friendRequestService = async (user, id, recipentId) => {
   };
 };
 
-/* ---------- FRIEND REQUEST ---------- */
+/* ---------- CANCLE FRIEND REQUEST ---------- */
 export const cancelFriendRequestService = async (user, id, recipentId) => {
   /* Kiểm tra xem ID ở phần params có đúng với ID của user đã được verify hay không */
   if (id !== user._id.toString()) {
@@ -93,7 +93,6 @@ export const cancelFriendRequestService = async (user, id, recipentId) => {
       msg: "You 2 have already been friend",
     };
   }
-  console.log(friendRequest._id.toString());
 
   const docs = await FriendRequest.findByIdAndDelete(
     friendRequest._id.toString()

@@ -1,4 +1,6 @@
 import {
+  deleteMessageService,
+  getConversationService,
   getConversationsService,
   getMessageService,
   sendImageService,
@@ -80,4 +82,41 @@ const getConversations = async (req, res) => {
   }
 };
 
-export { sendMessage, sendImage, getMessages, getConversations };
+/* ---------- GET CONVERSATIONS ---------- */
+const getConversation = async (req, res) => {
+  try {
+    const { id, conversationId } = req.params;
+    const user = req.user;
+
+    const response = await getConversationService(user, id, conversationId);
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ Error: "Error in getting conversation", msg: error.message });
+  }
+};
+
+/* ----------DELETE MESSAGE ---------- */
+const deleteMessage = async (req, res) => {
+  try {
+    const { id, messageId } = req.params;
+    const user = req.user;
+
+    const response = await deleteMessageService(user, id, messageId);
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ Error: "Error in delete message", msg: error.message });
+  }
+};
+
+export {
+  sendMessage,
+  sendImage,
+  getMessages,
+  getConversations,
+  getConversation,
+  deleteMessage,
+};

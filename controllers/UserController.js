@@ -150,10 +150,14 @@ const getUsersByPhones = async (req, res) => {
 };
 
 const findUserByPhone = async (req, res) => {
-  const user = req.user;
-  const { phone } = req.body;
-  const response = await getUserByPhoneService(user, phone);
-  return res.status(response.status).json(response.msg);
+  try {
+    const user = req.user;
+    const phoneNumber = req.query.phoneNumber;
+    const response = await getUserByPhoneService(user, phoneNumber);
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res.status(500).json(error.message);
+  }
 };
 
 export {
