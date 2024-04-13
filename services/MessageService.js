@@ -11,35 +11,45 @@ export const sendMessageService = async (
   message,
   conversationName
 ) => {
-  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa
-     Nếu chưa tạo 1 conversation mới và tin nhắn mới 
-     Lưu tin nhắn vào conversation 
-  */
-  const senderId = user._id;
+  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
+  const senderId = user._id.toString();
   let conversation = await Conversation.findOne({
     participants: {
       $all: [senderId, receiverId],
     },
   });
 
+  /* Nếu chưa tạo 1 conversation, message mới 
+     Lưu message id vào conversation */
   if (!conversation) {
-    conversation = await Conversation.create({
-      name: conversationName,
-      participants: [senderId, receiverId],
-    });
-    const newMessage = await Message.create({
-      senderId,
-      receiverId,
-      messageType: "text",
-      message,
-    });
+    const result = await Promise.all([
+      await Conversation.create({
+        name: conversationName,
+        participants: [senderId, receiverId],
+      }),
+      await Message.create({
+        senderId,
+        receiverId,
+        messageType: "text",
+        message,
+      }),
+    ]);
+
+    conversation = result[0];
+    const newMessage = result[1];
+
     conversation.messages.push(newMessage._id);
     await conversation.save();
+
     const userSocketId = getUserSocketId(senderId);
     const receiverSocketId = getReceiverSocketId(receiverId);
-    if (userSocketId) {
+
+    if (userSocketId && receiverSocketId) {
+      io.to(receiverSocketId)
+        .to(userSocketId)
+        .emit("newConversation", conversation);
+    } else {
       io.to(userSocketId).emit("newConversation", conversation);
-      io.to(receiverSocketId).emit("newConversation", conversation);
     }
 
     return {
@@ -48,30 +58,36 @@ export const sendMessageService = async (
     };
   }
 
-  const newMessage = new Message({
-    senderId,
-    receiverId,
-    messageType: "text",
-    message,
-  });
+  /* Nếu từng nhắn rồi thì tạo message mới
+   Lưu message id vào conversation */
+  if (conversation) {
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      messageType: "text",
+      message,
+    });
 
-  if (newMessage) {
-    conversation.messages.push(newMessage._id);
+    if (newMessage) {
+      conversation.messages.push(newMessage._id);
+    }
+
+    await Promise.all([conversation.save(), newMessage.save()]).catch(
+      (error) => {
+        return { status: 500, msg: "Fail to send message" };
+      }
+    );
+
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
+
+    return {
+      status: 200,
+      msg: { conversation, newMessage },
+    };
   }
-
-  await Promise.all([conversation.save(), newMessage.save()]).catch((error) => {
-    return { status: 500, msg: "Fail to send message" };
-  });
-
-  const receiverSocketId = getReceiverSocketId(receiverId);
-  if (receiverSocketId) {
-    io.to(receiverSocketId).emit("newMessage", newMessage);
-  }
-
-  return {
-    status: 200,
-    msg: { conversation, newMessage },
-  };
 };
 
 /* ---------- SEND IMAGE SERVICE ---------- */
@@ -81,10 +97,7 @@ export const sendImageService = async (
   files,
   conversationName
 ) => {
-  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa
-     Nếu chưa tạo 1 conversation mới và tin nhắn mới 
-     Lưu tin nhắn vào conversation 
-  */
+  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
   const senderId = user._id;
   let conversation = await Conversation.findOne({
     participants: {
@@ -92,6 +105,7 @@ export const sendImageService = async (
     },
   });
 
+  /* Nếu chưa tạo conversation mới */
   if (!conversation) {
     conversation = await Conversation.create({
       name: conversationName,
@@ -99,7 +113,7 @@ export const sendImageService = async (
     });
   }
 
-  /* Upload ảnh lên s3 */
+  /* Function upload ảnh lên s3 */
   function uploadToS3(file) {
     const image = file.originalname.split(".");
     console.log(image);
@@ -113,6 +127,19 @@ export const sendImageService = async (
     };
     return s3.upload(s3_params).promise();
   }
+
+  /* Function tạo và lưu messages mới */
+  function saveMessage(result) {
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      messageType: "image",
+      message: result.Location,
+    });
+    return newMessage.save();
+  }
+
+  /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
   const promiseUpload = [];
   files.forEach((file) => {
     promiseUpload.push(uploadToS3(file));
@@ -124,16 +151,7 @@ export const sendImageService = async (
     };
   });
 
-  /* Tạo và lưu messages */
-  function saveMessage(result) {
-    const newMessage = new Message({
-      senderId,
-      receiverId,
-      messageType: "image",
-      message: result.Location,
-    });
-    return newMessage.save();
-  }
+  /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
   const promiseMessage = [];
   resultUpload.forEach((result) => {
     promiseMessage.push(saveMessage(result));
@@ -145,27 +163,32 @@ export const sendImageService = async (
     };
   });
 
-  /* Đẩy messages ID vào conversation */
+  /* Lưu messages id vào conversation */
   if (resultMessage) {
     resultMessage.forEach((result) => {
       conversation.messages.push(result._id);
     });
-  }
-  await conversation.save();
+    await conversation.save();
 
-  const receiverSocketId = getReceiverSocketId(receiverId);
-  if (receiverSocketId) {
-    io.to(receiverSocketId).emit("newMessage", resultMessage);
-  }
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", resultMessage);
+    }
 
-  return {
-    status: 200,
-    msg: { resultMessage },
-  };
+    return {
+      status: 200,
+      msg: { resultMessage },
+    };
+  }
 };
 
-/* ---------- DELETE MESSAGE SERVICE ---------- */
-export const deleteMessageService = async (user, id, messageId) => {
+/* ---------- DELETE MESSAGE SERVICE (THU HỒI) ---------- */
+export const deleteMessageService = async (
+  user,
+  id,
+  participantId,
+  messageId
+) => {
   if (user._id.toString() !== id) {
     return {
       status: 401,
@@ -173,15 +196,26 @@ export const deleteMessageService = async (user, id, messageId) => {
     };
   }
 
-  const message = await Message.findById(messageId);
-
-  if (!message) {
+  /* Tìm message theo id, conversation của user và người nhận */
+  const resultFind = await Promise.all([
+    await Message.findById(messageId),
+    await Conversation.findOne({
+      participants: {
+        $all: [id, participantId],
+      },
+    }),
+  ]);
+  if (!resultFind) {
     return {
       status: 404,
-      msg: "Message not found",
+      msg: "Message or Conversation not found",
     };
   }
 
+  const message = resultFind[0];
+  const conversation = resultFind[1];
+
+  /* Chỉ cho chép thu hồi tin nhắn của bản thân */
   if (message.senderId.toString() !== id) {
     return {
       status: 400,
@@ -189,29 +223,62 @@ export const deleteMessageService = async (user, id, messageId) => {
     };
   }
 
-  const docs = await Message.findByIdAndDelete(messageId);
-
-  if (docs) {
-    const receiverSocketId = getReceiverSocketId(docs.receiverId.toString());
-    io.to(receiverSocketId).emit("delMessage", docs);
-
+  /* Xóa message và message id trong conversation */
+  const resultDelete = await Promise.all([
+    await Message.findByIdAndDelete(messageId),
+    await conversation.updateOne({
+      $pull: {
+        messages: messageId,
+      },
+    }),
+  ]);
+  if (!resultDelete) {
     return {
-      status: 200,
-      msg: docs,
+      status: 500,
+      msg: "Deleting message failed",
     };
   }
 
+  const messageDocs = resultDelete[0];
+
+  /* Xóa conversation nếu không còn message nào trong conversation */
+  if (conversation.messages.length == 1) {
+    if (messageDocs) {
+      const conversationDocs = await Conversation.findByIdAndDelete(
+        conversation._id.toString()
+      );
+      const receiverSocketId = getReceiverSocketId(
+        messageDocs.receiverId.toString()
+      );
+      const userSocketId = getUserSocketId(id);
+      io.to(receiverSocketId).emit("delMessage", messageDocs);
+      io.to(receiverSocketId)
+        .to(userSocketId)
+        .emit("delConversation", conversationDocs);
+
+      return {
+        status: 200,
+        msg: messageDocs,
+      };
+    }
+  }
+
+  const receiverSocketId = getReceiverSocketId(
+    messageDocs.receiverId.toString()
+  );
+  io.to(receiverSocketId).emit("delMessage", messageDocs);
+
   return {
-    status: 500,
-    msg: "Deleted message Failed",
+    status: 200,
+    msg: messageDocs,
   };
 };
 
-/* ---------- GET MESSAGE SERVICE ---------- */
+/* ---------- GET MESSAGES SERVICE ---------- */
 export const getMessageService = async (user, userToChatId) => {
   const userId = user._id;
 
-  /* Tìm cuộc trò chuyện và tin nhắn của 2 người */
+  /* Tìm conversation và messages của 2 người */
   const conversation = await Conversation.findOne({
     participants: {
       $all: [userId, userToChatId],
@@ -226,7 +293,7 @@ export const getMessageService = async (user, userToChatId) => {
     };
   }
 
-  /* Nếu tìm thấy trả về cuộc trò chuyện và lấy tin nhắn ra trên FE */
+  /* Nếu tìm thấy trả về messages trong conversation */
   return {
     status: 200,
     msg: conversation.messages,
@@ -242,12 +309,14 @@ export const getConversationsService = async (user, id) => {
     };
   }
 
+  /* Tìm tất cả conversations mà user có */
   const conversations = await Conversation.find({
     participants: {
       $in: [user._id],
     },
   }).populate("participants messages");
 
+  /* Nếu ko có conversations nào trả về mảng rỗng */
   if (!conversations) {
     return {
       status: 200,
@@ -270,10 +339,12 @@ export const getConversationService = async (user, id, conversationId) => {
     };
   }
 
+  /* Tìm conversation theo id */
   const conversations = await Conversation.findById(conversationId).populate(
     "participants messages"
   );
 
+  /* Nếu ko tìm thấy trả về 404 */
   if (!conversations) {
     return {
       status: 404,

@@ -1,5 +1,6 @@
 import FriendRequest from "../models/FriendRequest.js";
 import User from "../models/User.js";
+import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 
 /* ---------- FRIEND REQUEST ---------- */
 export const friendRequestService = async (user, id, recipentId) => {
@@ -163,6 +164,14 @@ export const friendAcceptService = async (user, id, requesterId) => {
     user.save(),
     requester.save(),
   ]);
+
+  const receiverSocketId = getReceiverSocketId(requesterId);
+  const userSocketId = getUserSocketId(id);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("acceptedFriendRequest", user);
+    io.to(userSocketId).emit("acceptedFriendRequest", requester);
+  }
+
   return {
     status: 200,
     msg: response,

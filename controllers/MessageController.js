@@ -100,10 +100,15 @@ const getConversation = async (req, res) => {
 /* ----------DELETE MESSAGE ---------- */
 const deleteMessage = async (req, res) => {
   try {
-    const { id, messageId } = req.params;
+    const { id, messageId, participantId } = req.params;
     const user = req.user;
 
-    const response = await deleteMessageService(user, id, messageId);
+    const response = await deleteMessageService(
+      user,
+      id,
+      participantId,
+      messageId
+    );
     return res.status(response.status).json(response.msg);
   } catch (error) {
     return res
