@@ -111,7 +111,7 @@ const uploadAvatar = async (req, res) => {
 const findUser = async (req, res) => {
   const userId = req.params.userId;
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate("friends", "username avatar");
     res.status(200).json(user);
   } catch (error) {
     console.log(error);

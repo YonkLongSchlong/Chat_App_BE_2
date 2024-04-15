@@ -57,6 +57,7 @@ const getMessages = async (req, res) => {
   try {
     const { userToChatId } = req.params;
     const user = req.user;
+    
 
     const response = await getMessageService(user, userToChatId);
     return res.status(response.status).json(response.msg);
