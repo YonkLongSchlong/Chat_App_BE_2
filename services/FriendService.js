@@ -214,7 +214,7 @@ export const getAllFriendsRequestService = async (user, id) => {
 
   if (response.length <= 0) {
     return {
-      status: 401,
+      status: 404,
       msg: "There no friend requests found",
     };
   }
