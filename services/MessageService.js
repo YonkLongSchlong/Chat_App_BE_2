@@ -1,7 +1,6 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
-import User from "../models/User.js";
 import { s3 } from "../utils/configAWS.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
@@ -79,9 +78,12 @@ export const sendMessageService = async (
     );
 
     const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
+    const userSocketId = getUserSocketId(senderId);
+    if (receiverSocketId && userSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
+      io.to(userSocketId).to(receiverSocketId).emit("notification");
     }
+    io.to(userSocketId).emit("notification");
 
     return {
       status: 200,
@@ -267,6 +269,7 @@ export const deleteMessageService = async (
     messageDocs.receiverId.toString()
   );
   io.to(receiverSocketId).emit("delMessage", messageDocs);
+  io.to(receiverSocketId).emit("notification");
 
   return {
     status: 200,
