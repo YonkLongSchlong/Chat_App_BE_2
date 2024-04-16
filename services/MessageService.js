@@ -240,11 +240,8 @@ export const sendFileService = async (
   files.forEach((file) => {
     promiseUpload.push(uploadToS3(file));
   });
-  const resultUpload = await Promise.all(promiseUpload).catch(() => {
-    return {
-      status: 500,
-      msg: "Failed to send files",
-    };
+  const resultUpload = await Promise.all(promiseUpload).catch((error) => {
+    throw new Error(error.message);
   });
 
   /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
@@ -252,11 +249,8 @@ export const sendFileService = async (
   resultUpload.forEach((result, index) => {
     promiseMessage.push(saveMessage(result, index));
   });
-  const resultMessage = await Promise.all(promiseMessage).catch(() => {
-    return {
-      status: 500,
-      msg: "Failed to save files",
-    };
+  const resultMessage = await Promise.all(promiseMessage).catch((error) => {
+    throw new Error(error.message);
   });
 
   /* Lưu messages id vào conversation */

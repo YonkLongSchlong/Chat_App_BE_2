@@ -5,6 +5,7 @@ import authRoute from "./routes/AuthRoute.js";
 import userRoute from "./routes/UserRoute.js";
 import friendsRoute from "./routes/FriendsRoute.js";
 import messagesRoute from "./routes/MessagesRoute.js";
+import groupChatRoute from "./routes/GroupChatRoute.js";
 import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -15,38 +16,21 @@ dotenv.config();
 app.use(express.json({ limit: "30mb", extended: true }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use(cookieParser());
-// app.use(cors());
-// // Cấu hình Cors
-// app.use(function(req, res, next) {
-//   res.setHeader('Access-Control-Allow-Origin', '*');
-//   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-//   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-//   res.setHeader('Access-Control-Allow-Credentials', true);
-//   next();
-// });
 const corsOpts = {
-  origin: '*',
-
-  methods: [
-    'GET',
-    'POST',
-    'PUT',
-    'DELETE',
-  ],
-
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: [
-    "Origin", 
-    "X-Requested-With", 
-    "Content-Type", 
-    "Accept", 
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
     "Authorization",
-    "Access-Control-Allow-Origin"
+    "Access-Control-Allow-Origin",
   ],
 };
-
 app.use(cors(corsOpts));
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+// app.use(bodyParser.urlencoded({ extended: false }));
+// app.use(bodyParser.json());
 
 /* ---------- AUTH ROUTE ---------- */
 app.use("/auth", authRoute);
@@ -59,6 +43,9 @@ app.use("/friends", friendsRoute);
 
 /* ---------- CHAT ROUTES ---------- */
 app.use("/messages", messagesRoute);
+
+/* ---------- GROUP CHAT ROUTES ---------- */
+app.use("/group", groupChatRoute);
 
 /* ---------- CONNECT DB ---------- */
 mongoose
