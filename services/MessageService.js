@@ -4,18 +4,11 @@ import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 import { s3 } from "../utils/configAWS.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
-export const sendMessageService = async (
-  user,
-  receiverId,
-  message,
-  conversationName
-) => {
+export const sendMessageService = async (user, receiverId, message) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
-  const senderId = user._id.toString();
+  const userId = user._id;
   let conversation = await Conversation.findOne({
-    participants: {
-      $all: [senderId, receiverId],
-    },
+    participants: { $all: [userId, receiverId], $size: 2 },
   });
 
   /* Nếu chưa tạo 1 conversation, message mới 
@@ -23,11 +16,10 @@ export const sendMessageService = async (
   if (!conversation) {
     const result = await Promise.all([
       await Conversation.create({
-        name: conversationName,
-        participants: [senderId, receiverId],
+        participants: [userId.toString(), receiverId],
       }),
       await Message.create({
-        senderId,
+        senderId: userId.toString(),
         receiverId,
         messageType: "text",
         message,
@@ -40,7 +32,7 @@ export const sendMessageService = async (
     conversation.messages.push(newMessage._id);
     await conversation.save();
 
-    const userSocketId = getUserSocketId(senderId);
+    const userSocketId = getUserSocketId(userId.toString());
     const receiverSocketId = getReceiverSocketId(receiverId);
 
     if (userSocketId && receiverSocketId) {
@@ -61,11 +53,12 @@ export const sendMessageService = async (
    Lưu message id vào conversation */
   if (conversation) {
     const newMessage = new Message({
-      senderId,
+      senderId: userId.toString(),
       receiverId,
       messageType: "text",
       message,
     });
+    console.log(newMessage);
 
     if (newMessage) {
       conversation.messages.push(newMessage._id);
@@ -78,7 +71,7 @@ export const sendMessageService = async (
     );
 
     const receiverSocketId = getReceiverSocketId(receiverId);
-    const userSocketId = getUserSocketId(senderId);
+    const userSocketId = getUserSocketId(userId.toString());
     if (receiverSocketId && userSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
       io.to(userSocketId).to(receiverSocketId).emit("notification");
@@ -100,18 +93,15 @@ export const sendImageService = async (
   conversationName
 ) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
-  const senderId = user._id;
+  const userId = user._id.toString();
   let conversation = await Conversation.findOne({
-    participants: {
-      $all: [senderId, receiverId],
-    },
+    participants: { $all: [userId, receiverId], $size: 2 },
   });
 
   /* Nếu chưa tạo conversation mới */
   if (!conversation) {
     conversation = await Conversation.create({
-      name: conversationName,
-      participants: [senderId, receiverId],
+      participants: [userId, receiverId],
     });
   }
 
@@ -119,7 +109,7 @@ export const sendImageService = async (
   function uploadToS3(file) {
     const image = file.originalname.split(".");
     const fileType = image[image.length - 1];
-    const fileName = `${senderId}_${Date.now().toString()}.${fileType}`;
+    const fileName = `${userId}_${Date.now().toString()}.${fileType}`;
     const s3_params = {
       Bucket: process.env.S3_IMAGE_MESSAGE_BUCKET,
       Key: fileName,
@@ -132,7 +122,7 @@ export const sendImageService = async (
   /* Function tạo và lưu messages mới */
   function saveMessage(result, index) {
     const newMessage = new Message({
-      senderId,
+      senderId: userId,
       receiverId,
       messageType: "image",
       messageUrl: result.Location,
@@ -146,11 +136,8 @@ export const sendImageService = async (
   files.forEach((file) => {
     promiseUpload.push(uploadToS3(file));
   });
-  const resultUpload = await Promise.all(promiseUpload).catch(() => {
-    return {
-      status: 500,
-      msg: "Failed to send images",
-    };
+  const resultUpload = await Promise.all(promiseUpload).catch((error) => {
+    throw new Error(error.message);
   });
 
   /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
@@ -158,11 +145,8 @@ export const sendImageService = async (
   resultUpload.forEach((result, index) => {
     promiseMessage.push(saveMessage(result, index));
   });
-  const resultMessage = await Promise.all(promiseMessage).catch(() => {
-    return {
-      status: 500,
-      msg: "Failed to save message",
-    };
+  const resultMessage = await Promise.all(promiseMessage).catch((error) => {
+    throw new Error(error.message);
   });
 
   /* Lưu messages id vào conversation */
@@ -192,18 +176,15 @@ export const sendFileService = async (
   conversationName
 ) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
-  const senderId = user._id;
+  const userId = user._id.toString();
   let conversation = await Conversation.findOne({
-    participants: {
-      $all: [senderId, receiverId],
-    },
+    participants: { $all: [userId, receiverId], $size: 2 },
   });
 
   /* Nếu chưa tạo conversation mới */
   if (!conversation) {
     conversation = await Conversation.create({
-      name: conversationName,
-      participants: [senderId, receiverId],
+      participants: [userId, receiverId],
     });
   }
 
@@ -211,7 +192,7 @@ export const sendFileService = async (
   function uploadToS3(file) {
     const fileSend = file.originalname.split(".");
     const fileType = fileSend[fileSend.length - 1];
-    const fileName = `${senderId}_${
+    const fileName = `${userId}_${
       file.originalname
     }_${Date.now().toString()}.${fileType}`;
     const s3_params = {
@@ -226,7 +207,7 @@ export const sendFileService = async (
   /* Function tạo và lưu messages mới */
   function saveMessage(result, index) {
     const newMessage = new Message({
-      senderId,
+      senderId: userId,
       receiverId,
       messageType: "file",
       messageUrl: result.Location,
@@ -290,9 +271,7 @@ export const deleteMessageService = async (
   const resultFind = await Promise.all([
     await Message.findById(messageId),
     await Conversation.findOne({
-      participants: {
-        $all: [id, participantId],
-      },
+      participants: { $all: [id, participantId], $size: 2 },
     }),
   ]);
   if (!resultFind) {
@@ -371,9 +350,7 @@ export const getMessageService = async (user, userToChatId) => {
 
   /* Tìm conversation và messages của 2 người */
   const conversation = await Conversation.findOne({
-    participants: {
-      $all: [userId, userToChatId],
-    },
+    participants: { $all: [userId, userToChatId], $size: 2 },
   }).populate("messages");
 
   /* Nếu không tìm thấy cuộc trò chuyện trả về mảng rỗng */

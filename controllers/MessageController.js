@@ -13,14 +13,9 @@ const sendMessage = async (req, res) => {
   try {
     const { receiverId } = req.params;
     const user = req.user;
-    const { message, conversationName } = req.body;
+    const { message } = req.body;
 
-    const response = await sendMessageService(
-      user,
-      receiverId,
-      message,
-      conversationName
-    );
+    const response = await sendMessageService(user, receiverId, message);
     return res.status(response.status).json(response.msg);
   } catch (error) {
     return res
@@ -80,7 +75,6 @@ const getMessages = async (req, res) => {
   try {
     const { userToChatId } = req.params;
     const user = req.user;
-    
 
     const response = await getMessageService(user, userToChatId);
     return res.status(response.status).json(response.msg);

@@ -4,7 +4,6 @@ const conversationSchema = new mongoose.Schema({
   id: mongoose.Schema.ObjectId,
   name: {
     type: String,
-    required: true,
   },
   participants: [
     {
