@@ -118,7 +118,6 @@ export const sendImageService = async (
   /* Function upload ảnh lên s3 */
   function uploadToS3(file) {
     const image = file.originalname.split(".");
-    console.log(image);
     const fileType = image[image.length - 1];
     const fileName = `${senderId}_${Date.now().toString()}.${fileType}`;
     const s3_params = {
@@ -131,12 +130,13 @@ export const sendImageService = async (
   }
 
   /* Function tạo và lưu messages mới */
-  function saveMessage(result) {
+  function saveMessage(result, index) {
     const newMessage = new Message({
       senderId,
       receiverId,
       messageType: "image",
-      message: result.Location,
+      messageUrl: result.Location,
+      message: files[index].originalname,
     });
     return newMessage.save();
   }
@@ -155,13 +155,107 @@ export const sendImageService = async (
 
   /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
   const promiseMessage = [];
-  resultUpload.forEach((result) => {
-    promiseMessage.push(saveMessage(result));
+  resultUpload.forEach((result, index) => {
+    promiseMessage.push(saveMessage(result, index));
   });
   const resultMessage = await Promise.all(promiseMessage).catch(() => {
     return {
       status: 500,
       msg: "Failed to save message",
+    };
+  });
+
+  /* Lưu messages id vào conversation */
+  if (resultMessage) {
+    resultMessage.forEach((result) => {
+      conversation.messages.push(result._id);
+    });
+    await conversation.save();
+
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", resultMessage);
+    }
+
+    return {
+      status: 200,
+      msg: { resultMessage },
+    };
+  }
+};
+
+/* ---------- SEND FILE SERVICE ---------- */
+export const sendFileService = async (
+  user,
+  receiverId,
+  files,
+  conversationName
+) => {
+  /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
+  const senderId = user._id;
+  let conversation = await Conversation.findOne({
+    participants: {
+      $all: [senderId, receiverId],
+    },
+  });
+
+  /* Nếu chưa tạo conversation mới */
+  if (!conversation) {
+    conversation = await Conversation.create({
+      name: conversationName,
+      participants: [senderId, receiverId],
+    });
+  }
+
+  /* Function upload file lên s3 */
+  function uploadToS3(file) {
+    const fileSend = file.originalname.split(".");
+    const fileType = fileSend[fileSend.length - 1];
+    const fileName = `${senderId}_${
+      file.originalname
+    }_${Date.now().toString()}.${fileType}`;
+    const s3_params = {
+      Bucket: process.env.S3_FILE_MESSAGE_BUCKET,
+      Key: fileName,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+    return s3.upload(s3_params).promise();
+  }
+
+  /* Function tạo và lưu messages mới */
+  function saveMessage(result, index) {
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      messageType: "file",
+      messageUrl: result.Location,
+      message: files[index].originalname,
+    });
+    return newMessage.save();
+  }
+
+  /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
+  const promiseUpload = [];
+  files.forEach((file) => {
+    promiseUpload.push(uploadToS3(file));
+  });
+  const resultUpload = await Promise.all(promiseUpload).catch(() => {
+    return {
+      status: 500,
+      msg: "Failed to send files",
+    };
+  });
+
+  /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
+  const promiseMessage = [];
+  resultUpload.forEach((result, index) => {
+    promiseMessage.push(saveMessage(result, index));
+  });
+  const resultMessage = await Promise.all(promiseMessage).catch(() => {
+    return {
+      status: 500,
+      msg: "Failed to save files",
     };
   });
 

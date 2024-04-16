@@ -3,6 +3,7 @@ import {
   getConversationService,
   getConversationsService,
   getMessageService,
+  sendFileService,
   sendImageService,
   sendMessageService,
 } from "../services/MessageService.js";
@@ -34,7 +35,6 @@ const sendImage = async (req, res) => {
     const { receiverId } = req.params;
     const user = req.user;
     const files = req.files;
-    console.log(files);
     const { conversationName } = req.body;
 
     const response = await sendImageService(
@@ -49,6 +49,29 @@ const sendImage = async (req, res) => {
     return res
       .status(404)
       .json({ Error: "Error in send message", msg: error.message });
+  }
+};
+
+/* ---------- SEND FILE ---------- */
+const sendFile = async (req, res) => {
+  try {
+    const { receiverId } = req.params;
+    const user = req.user;
+    const files = req.files;
+    const { conversationName } = req.body;
+
+    const response = await sendFileService(
+      user,
+      receiverId,
+      files,
+      conversationName
+    );
+    console.log(response.msg);
+    res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(404)
+      .json({ Error: "Error in send file", msg: error.message });
   }
 };
 
@@ -120,6 +143,7 @@ const deleteMessage = async (req, res) => {
 export {
   sendMessage,
   sendImage,
+  sendFile,
   getMessages,
   getConversations,
   getConversation,

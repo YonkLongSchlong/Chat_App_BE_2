@@ -5,6 +5,7 @@ import {
   getConversation,
   getConversations,
   getMessages,
+  sendFile,
   sendImage,
   sendMessage,
 } from "../controllers/MessageController.js";
@@ -18,6 +19,12 @@ route.post(
   verifyToken,
   upload.array("images[]"),
   sendImage
+); // Gửi hình ảnh
+route.post(
+  "/send/file/:receiverId",
+  verifyToken,
+  upload.array("files[]", 10),
+  sendFile
 ); // Gửi hình ảnh
 route.get("/:userToChatId", verifyToken, getMessages); // Lấy tin nhắn
 route.get("/conversations/:id", verifyToken, getConversations); // Lấy tất cả cuộc trò chuyện
