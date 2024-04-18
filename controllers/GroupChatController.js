@@ -143,11 +143,11 @@ export const deleteGroupChatMessage = async (req, res) => {
 export const addToGroupChat = async (req, res) => {
   try {
     const user = req.user;
-    const { conversationId, participantsId } = req.body;
+    const { conversationId, participantId } = req.body;
     const response = await addToGroupChatService(
       user,
       conversationId,
-      participantsId
+      participantId
     );
     return res.status(response.status).json(response.msg);
   } catch (error) {

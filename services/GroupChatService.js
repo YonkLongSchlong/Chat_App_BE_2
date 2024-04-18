@@ -409,7 +409,7 @@ export const deleteGroupChatMessageService = async (
 export const addToGroupChatService = async (
   user,
   conversationId,
-  participantsId
+  participantId
 ) => {
   const conversation = await Conversation.findById(conversationId);
 
@@ -427,17 +427,13 @@ export const addToGroupChatService = async (
     };
   }
 
-  const participants = [];
-  participantsId.forEach(async (id) => {
-    const participant = await User.findById(id);
-    if (!participant) {
-      participants.push(participant);
-    }
-  });
-
-  participants.forEach(async (participant) => {
+  const participant = await User.findById(participantId);
+  if (participant) {
     conversation.participants.push(participant._id);
     await conversation.save();
+  }
+
+  conversation.participants.forEach(async (participant) => {
     const participantSocketId = getReceiverSocketId(participant._id.toString());
     if (participantSocketId) {
       io.to(participantSocketId).emit("newConversation", conversation);
