@@ -2,7 +2,7 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { s3 } from "../utils/configAWS.js";
-import { getReceiverSocketId, io } from "../utils/socket.js";
+import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -15,6 +15,15 @@ export const createGroupChatService = async (
     participants: [userId, ...participantsId],
     name: conversationName,
     status: 1,
+    conversationImage:
+      "https://essentialstuff.s3.ap-southeast-1.amazonaws.com/6387947.png",
+  });
+
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("newConversation", conversation);
+    }
   });
 
   return {
@@ -59,10 +68,17 @@ export const sendGroupChatMessageService = async (
     };
   }
 
+  if (!conversation.participants.includes(userId)) {
+    return {
+      status: 400,
+      msg: "You are not a member of this conversation",
+    };
+  }
+
   if (conversation.status === 2) {
     return {
       status: 400,
-      msg: "Conversation have been retired",
+      msg: "Conversation has been closed",
     };
   }
 
@@ -81,6 +97,14 @@ export const sendGroupChatMessageService = async (
       }
     );
 
+    conversation.participants.forEach((participant) => {
+      const participantSocketId = getReceiverSocketId(
+        participant._id.toString()
+      );
+      if (participantSocketId) {
+        io.to(participantSocketId).emit("notification");
+      }
+    });
     io.to(conversation._id.toString()).emit("newMessage", newMessage);
 
     return {
@@ -109,7 +133,7 @@ export const sendGroupChatImagesService = async (
   if (conversation.status === 2) {
     return {
       status: 400,
-      msg: "Conversation have been retired",
+      msg: "Conversation has been closed",
     };
   }
 
@@ -160,6 +184,12 @@ export const sendGroupChatImagesService = async (
   });
   await conversation.save();
 
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+    }
+  });
   io.to(conversation._id.toString()).emit("newMessage", resultMessage);
 
   return {
@@ -188,7 +218,7 @@ export const sendGroupChatFilesService = async (
   if (conversation.status === 2) {
     return {
       status: 400,
-      msg: "Conversation have been retired",
+      msg: "Conversation has been closed",
     };
   }
 
@@ -238,10 +268,82 @@ export const sendGroupChatFilesService = async (
   });
   await conversation.save();
 
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+    }
+  });
+  io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+
   return {
     status: 200,
     msg: { resultMessage },
   };
+};
+
+/* ---------- SHARE GROUP CHAT MESSAGE SERVICE ---------- */
+export const shareGroupChatMessageService = async (
+  user,
+  conversationId,
+  messageId
+) => {
+  const userId = user._id.toString();
+  const message = await Message.findById(messageId);
+  if (!message) {
+    return {
+      status: 404,
+      msg: "Message not found",
+    };
+  }
+
+  const conversation = await Conversation.findById(conversationId);
+
+  if (conversation) {
+    let newMessage = {};
+    if (message.messageType == "text") {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId: conversation._id.toString(),
+        messageType: "text",
+        message: message.message,
+      });
+    } else if (message.messageType == "image") {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId: conversation._id.toString(),
+        messageType: "image",
+        message: message.message,
+        messageUrl: message.messageUrl,
+      });
+    } else {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId: conversation._id.toString(),
+        messageType: "file",
+        message: message.message,
+        messageUrl: message.messageUrl,
+      });
+    }
+
+    conversation.messages.push(newMessage._id);
+    await conversation.save();
+
+    conversation.participants.forEach((participant) => {
+      const participantSocketId = getReceiverSocketId(
+        participant._id.toString()
+      );
+      if (participantSocketId) {
+        io.to(participantSocketId).emit("notification");
+      }
+    });
+    io.to(conversation._id.toString()).emit("newMessage", newMessage);
+
+    return {
+      status: 200,
+      msg: { conversation, newMessage },
+    };
+  }
 };
 
 /* ---------- DELETE MESSAGE IN GROUP CHAT SERVICE (THU HỒI) ---------- */
@@ -265,7 +367,7 @@ export const deleteGroupChatMessageService = async (
   if (conversation.status === 2) {
     return {
       status: 400,
-      msg: "Conversation have been retired",
+      msg: "Conversation has been closed",
     };
   }
 
@@ -289,6 +391,12 @@ export const deleteGroupChatMessageService = async (
 
   const delMessage = resultDelete[1];
 
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+    }
+  });
   io.to(conversation._id.toString()).emit("delMessage", delMessage);
 
   return {
@@ -298,10 +406,10 @@ export const deleteGroupChatMessageService = async (
 };
 
 /* ---------- ADD PARTICIPANT TO GROUP  ---------- */
-export const addToGroupService = async (
+export const addToGroupChatService = async (
   user,
   conversationId,
-  participantId
+  participantsId
 ) => {
   const conversation = await Conversation.findById(conversationId);
 
@@ -319,22 +427,30 @@ export const addToGroupService = async (
     };
   }
 
-  const participant = await User.findById(participantId);
+  const participants = [];
+  participantsId.forEach(async (id) => {
+    const participant = await User.findById(id);
+    if (!participant) {
+      participants.push(participant);
+    }
+  });
 
-  if (!participant) {
-    return {
-      status: 404,
-      msg: "Participant not found",
-    };
-  }
+  participants.forEach(async (participant) => {
+    conversation.participants.push(participant._id);
+    await conversation.save();
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("newConversation", conversation);
+    }
+  });
 
-  conversation.participants.push(participant._id);
-  await conversation.save();
-
-  const participantSocketId = await getReceiverSocketId(participantId);
-  if (participantSocketId) {
-    io.to(participantSocketId).emit("removedFromGroup", conversation);
-  }
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+      io.to(participantSocketId).emit("updateGroupChat");
+    }
+  });
 
   return {
     status: 200,
@@ -343,7 +459,7 @@ export const addToGroupService = async (
 };
 
 /* ---------- REMOVE PARTICIPANT FROM GROUP  ---------- */
-export const removeFromGroupService = async (
+export const removeFromGroupChatService = async (
   user,
   conversationId,
   participantId
@@ -379,8 +495,15 @@ export const removeFromGroupService = async (
 
   const participantSocketId = await getReceiverSocketId(participantId);
   if (participantSocketId) {
-    io.to(participantSocketId).emit("removedFromGroup", conversation);
+    io.to(participantSocketId).emit("delConversation", conversation);
   }
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+      io.to(participantSocketId).emit("updateGroupChat");
+    }
+  });
 
   return {
     status: 200,
@@ -388,8 +511,8 @@ export const removeFromGroupService = async (
   };
 };
 
-/* ---------- RETIRE GROUP  ---------- */
-export const retireGroup = async (user, conversationId) => {
+/* ---------- CLOSE GROUP  ---------- */
+export const closeGroupChatService = async (user, conversationId) => {
   const conversation = await Conversation.findById(conversationId);
   if (!conversation) {
     return {
@@ -400,6 +523,13 @@ export const retireGroup = async (user, conversationId) => {
 
   conversation.status = 2;
   await conversation.save();
+
+  conversation.participants.forEach((participant) => {
+    const participantSocketId = getReceiverSocketId(participant._id.toString());
+    if (participantSocketId) {
+      io.to(participantSocketId).emit("notification");
+    }
+  });
 
   return {
     status: 200,

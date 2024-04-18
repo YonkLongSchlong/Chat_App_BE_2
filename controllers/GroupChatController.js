@@ -1,10 +1,14 @@
 import {
+  addToGroupChatService,
+  closeGroupChatService,
   createGroupChatService,
   deleteGroupChatMessageService,
   getGroupChatMessagesService,
+  removeFromGroupChatService,
   sendGroupChatFilesService,
   sendGroupChatImagesService,
   sendGroupChatMessageService,
+  shareGroupChatMessageService,
 } from "../services/GroupChatService.js";
 
 /* ---------- CREATE GROUP CHAT ---------- */
@@ -98,6 +102,24 @@ export const sendGroupChatFiles = async (req, res) => {
   }
 };
 
+/* ---------- SHARE MESSAGE TO GROUP CHAT ---------- */
+export const shareGroupChatMessage = async (req, res) => {
+  try {
+    const user = req.user;
+    const { conversationId, messageId } = req.body;
+    const resposne = await shareGroupChatMessageService(
+      user,
+      conversationId,
+      messageId
+    );
+    return res.status(resposne.status).json(resposne.msg);
+  } catch (error) {
+    return res
+      .status(resposne.status)
+      .json({ Error: "Errorin sharing group message", msg: error.message });
+  }
+};
+
 /* ---------- DELETE MESSAGE IN GROUP CHAT (THU HỒI) ---------- */
 export const deleteGroupChatMessage = async (req, res) => {
   try {
@@ -114,5 +136,57 @@ export const deleteGroupChatMessage = async (req, res) => {
       Error: "Error in deleting group chat message",
       msg: error.message,
     });
+  }
+};
+
+/* ---------- ADD PARTICIPANT TO GROUP CHAT ---------- */
+export const addToGroupChat = async (req, res) => {
+  try {
+    const user = req.user;
+    const { conversationId, participantsId } = req.body;
+    const response = await addToGroupChatService(
+      user,
+      conversationId,
+      participantsId
+    );
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res.status(500).json({
+      Error: "Error in adding participant to group chat",
+      msg: error.message,
+    });
+  }
+};
+
+/* ---------- REMOVE PARTICIPANT FROM GROUP CHAT ---------- */
+export const removeFromGroupChat = async (req, res) => {
+  try {
+    const user = req.user;
+    const { conversationId, participantId } = req.body;
+    const response = await removeFromGroupChatService(
+      user,
+      conversationId,
+      participantId
+    );
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res.status(500).json({
+      Error: "Error in remove participant from group chat",
+      msg: error.message,
+    });
+  }
+};
+
+/* ---------- CLOSE GROUP CHAT ---------- */
+export const closeGroupChat = async (req, res) => {
+  try {
+    const user = req.user;
+    const { conversationId } = req.body;
+    const response = await closeGroupChatService(user, conversationId);
+    res.status(response.status).json(response.msg);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ Error: "Error in closing group chat", msg: error.msg });
   }
 };

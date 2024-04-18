@@ -1,27 +1,33 @@
 import mongoose from "mongoose";
 
-const conversationSchema = new mongoose.Schema({
-  id: mongoose.Schema.ObjectId,
-  name: {
-    type: String,
-  },
-  participants: [
-    {
-      type: mongoose.Schema.ObjectId,
-      ref: "User",
+const conversationSchema = new mongoose.Schema(
+  {
+    id: mongoose.Schema.ObjectId,
+    name: {
+      type: String,
     },
-  ],
-  messages: [
-    {
-      type: mongoose.Schema.ObjectId,
-      ref: "Message",
-      default: [],
+    participants: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: "User",
+      },
+    ],
+    messages: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: "Message",
+        default: [],
+      },
+    ],
+    status: {
+      type: Number,
     },
-  ],
-  status: {
-    type: Number,
+    conversationImage: {
+      type: String,
+    },
   },
-});
+  { timestamps: true }
+);
 
 const Conversation = mongoose.model("Conversation", conversationSchema);
 export default Conversation;

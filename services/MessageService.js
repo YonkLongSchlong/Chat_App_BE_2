@@ -224,22 +224,20 @@ export const sendFileService = async (user, receiverId, files) => {
   });
 
   /* Lưu messages id vào conversation */
-  if (resultMessage) {
-    resultMessage.forEach((result) => {
-      conversation.messages.push(result._id);
-    });
-    await conversation.save();
+  resultMessage.forEach((result) => {
+    conversation.messages.push(result._id);
+  });
+  await conversation.save();
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", resultMessage);
-    }
-
-    return {
-      status: 200,
-      msg: { resultMessage },
-    };
+  const receiverSocketId = getReceiverSocketId(receiverId);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("newMessage", resultMessage);
   }
+
+  return {
+    status: 200,
+    msg: { resultMessage },
+  };
 };
 
 /* ---------- SHARE MESSAGE SERVICE ---------- */
@@ -356,10 +354,8 @@ export const shareMessageService = async (user, receiverId, messageId) => {
       });
     }
 
-    if (newMessage) {
-      conversation.messages.push(newMessage._id);
-      await conversation.save();
-    }
+    conversation.messages.push(newMessage._id);
+    await conversation.save();
 
     const receiverSocketId = getReceiverSocketId(receiverId);
     const userSocketId = getUserSocketId(userId.toString());
