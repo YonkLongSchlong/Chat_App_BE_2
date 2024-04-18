@@ -2,6 +2,7 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 import { s3 } from "../utils/configAWS.js";
+import User from "../models/User.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
 export const sendMessageService = async (user, receiverId, message) => {
@@ -34,7 +35,6 @@ export const sendMessageService = async (user, receiverId, message) => {
 
     const userSocketId = getUserSocketId(userId.toString());
     const receiverSocketId = getReceiverSocketId(receiverId);
-
     if (userSocketId && receiverSocketId) {
       io.to(receiverSocketId)
         .to(userSocketId)
@@ -58,7 +58,6 @@ export const sendMessageService = async (user, receiverId, message) => {
       messageType: "text",
       message,
     });
-    console.log(newMessage);
 
     if (newMessage) {
       conversation.messages.push(newMessage._id);
@@ -86,12 +85,7 @@ export const sendMessageService = async (user, receiverId, message) => {
 };
 
 /* ---------- SEND IMAGE SERVICE ---------- */
-export const sendImageService = async (
-  user,
-  receiverId,
-  files,
-  conversationName
-) => {
+export const sendImageService = async (user, receiverId, files) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
   const userId = user._id.toString();
   let conversation = await Conversation.findOne({
@@ -169,12 +163,7 @@ export const sendImageService = async (
 };
 
 /* ---------- SEND FILE SERVICE ---------- */
-export const sendFileService = async (
-  user,
-  receiverId,
-  files,
-  conversationName
-) => {
+export const sendFileService = async (user, receiverId, files) => {
   /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
   const userId = user._id.toString();
   let conversation = await Conversation.findOne({
@@ -249,6 +238,140 @@ export const sendFileService = async (
     return {
       status: 200,
       msg: { resultMessage },
+    };
+  }
+};
+
+/* ---------- SHARE MESSAGE SERVICE ---------- */
+export const shareMessageService = async (user, receiverId, messageId) => {
+  const userId = user._id.toString();
+
+  if (receiverId === userId) {
+    return {
+      status: 400,
+      msg: "You can't share message with yourself",
+    };
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message) {
+    return {
+      status: 404,
+      msg: "Message not found",
+    };
+  }
+
+  let conversation = await Conversation.findOne({
+    participants: { $all: [userId, receiverId], $size: 2 },
+  });
+
+  if (!conversation) {
+    let result = [];
+    if (message.messageType == "text") {
+      result = await Promise.all([
+        await Conversation.create({
+          participants: [userId, receiverId],
+        }),
+        await Message.create({
+          senderId: userId,
+          receiverId,
+          messageType: "text",
+          message: message.message,
+        }),
+      ]);
+    } else if (message.messageType == "image") {
+      result = await Promise.all([
+        await Conversation.create({
+          participants: [userId, receiverId],
+        }),
+        await Message.create({
+          senderId: userId,
+          receiverId,
+          messageType: "image",
+          message: message.message,
+          messageUrl: message.messageUrl,
+        }),
+      ]);
+    } else {
+      result = await Promise.all([
+        await Conversation.create({
+          participants: [userId, receiverId],
+        }),
+        await Message.create({
+          senderId: userId,
+          receiverId,
+          messageType: "file",
+          message: message.message,
+          messageUrl: message.messageUrl,
+        }),
+      ]);
+    }
+
+    conversation = result[0];
+    const newMessage = result[1];
+
+    conversation.messages.push(newMessage._id);
+    await conversation.save();
+
+    const userSocketId = getUserSocketId(userId);
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (userSocketId && receiverSocketId) {
+      io.to(receiverSocketId)
+        .to(userSocketId)
+        .emit("newConversation", conversation);
+    } else {
+      io.to(userSocketId).emit("newConversation", conversation);
+    }
+
+    return {
+      status: 200,
+      msg: { conversation, newMessage },
+    };
+  }
+
+  if (conversation) {
+    let newMessage = {};
+    if (message.messageType == "text") {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId,
+        messageType: "text",
+        message: message.message,
+      });
+    } else if (message.messageType == "image") {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId,
+        messageType: "image",
+        message: message.message,
+        messageUrl: message.messageUrl,
+      });
+    } else {
+      newMessage = await Message.create({
+        senderId: userId,
+        receiverId,
+        messageType: "file",
+        message: message.message,
+        messageUrl: message.messageUrl,
+      });
+    }
+
+    if (newMessage) {
+      conversation.messages.push(newMessage._id);
+      await conversation.save();
+    }
+
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    const userSocketId = getUserSocketId(userId.toString());
+    if (receiverSocketId && userSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+      io.to(userSocketId).to(receiverSocketId).emit("notification");
+    }
+    io.to(userSocketId).emit("notification");
+
+    return {
+      status: 200,
+      msg: { conversation, newMessage },
     };
   }
 };

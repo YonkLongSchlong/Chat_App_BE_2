@@ -8,6 +8,7 @@ import {
   sendFile,
   sendImage,
   sendMessage,
+  shareMessage,
 } from "../controllers/MessageController.js";
 import { upload } from "../utils/configMulter.js";
 
@@ -26,6 +27,7 @@ route.post(
   upload.array("files[]", 10),
   sendFile
 ); // Gửi hình ảnh
+route.post("/share/:receiverId", verifyToken, shareMessage); // Chuyển tiếp tin nhắn
 route.get("/:userToChatId", verifyToken, getMessages); // Lấy tin nhắn
 route.get("/conversations/:id", verifyToken, getConversations); // Lấy tất cả cuộc trò chuyện
 route.get("/conversation/:id/:conversationId", verifyToken, getConversation); // Lấy 1 cuộc trò chuyện

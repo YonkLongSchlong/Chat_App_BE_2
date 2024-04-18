@@ -6,6 +6,7 @@ import {
   sendFileService,
   sendImageService,
   sendMessageService,
+  shareMessageService,
 } from "../services/MessageService.js";
 
 /* ---------- SEND MESSAGE ---------- */
@@ -67,6 +68,21 @@ const sendFile = async (req, res) => {
     return res
       .status(404)
       .json({ Error: "Error in send file", msg: error.message });
+  }
+};
+
+/* ---------- SHARE MESSAGE ---------- */
+const shareMessage = async (req, res) => {
+  try {
+    const user = req.user;
+    const { receiverId } = req.params;
+    const { messageId } = req.body;
+    const response = await shareMessageService(user, receiverId, messageId);
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res
+      .status(response.status)
+      .json({ Error: "Error in share message", msg: error });
   }
 };
 
@@ -139,6 +155,7 @@ export {
   sendMessage,
   sendImage,
   sendFile,
+  shareMessage,
   getMessages,
   getConversations,
   getConversation,

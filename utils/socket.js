@@ -17,7 +17,7 @@ const getUserSocketId = (userId) => {
   return userSocketMap[userId];
 };
 
-const userSocketMap = {}; // {userId, socketId}
+const userSocketMap = {}; // [{userId, socketId}]
 
 io.on("connection", (socket) => {
   console.log("A user connect", socket.id);
@@ -25,6 +25,11 @@ io.on("connection", (socket) => {
   if (userId !== "undefined") userSocketMap[userId] = socket.id;
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  console.log(Object.keys(userSocketMap));
+
+  socket.on("join", (conversationId) => {
+    socket.join(conversationId);
+  });
 
   socket.on("disconnect", () => {
     console.log("A user disconnect", socket.id);

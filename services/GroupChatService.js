@@ -1,6 +1,8 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import User from "../models/User.js";
 import { s3 } from "../utils/configAWS.js";
+import { getReceiverSocketId, io } from "../utils/socket.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -12,6 +14,7 @@ export const createGroupChatService = async (
   const conversation = await Conversation.create({
     participants: [userId, ...participantsId],
     name: conversationName,
+    status: 1,
   });
 
   return {
@@ -56,6 +59,13 @@ export const sendGroupChatMessageService = async (
     };
   }
 
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
+    };
+  }
+
   const newMessage = new Message({
     senderId: userId,
     receiverId: conversation._id.toString(),
@@ -70,6 +80,8 @@ export const sendGroupChatMessageService = async (
         throw new Error(error.message);
       }
     );
+
+    io.to(conversation._id.toString()).emit("newMessage", newMessage);
 
     return {
       status: 200,
@@ -91,6 +103,13 @@ export const sendGroupChatImagesService = async (
     return {
       status: 404,
       msg: "Conversation not found",
+    };
+  }
+
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
     };
   }
 
@@ -141,6 +160,8 @@ export const sendGroupChatImagesService = async (
   });
   await conversation.save();
 
+  io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+
   return {
     status: 200,
     msg: { resultMessage },
@@ -161,6 +182,13 @@ export const sendGroupChatFilesService = async (
     return {
       status: 404,
       msg: "Conversation not found",
+    };
+  }
+
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
     };
   }
 
@@ -234,6 +262,13 @@ export const deleteGroupChatMessageService = async (
   const conversation = resultFind[0];
   const message = resultFind[1];
 
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
+    };
+  }
+
   if (message.senderId.toString() !== userId) {
     return {
       status: 400,
@@ -254,8 +289,120 @@ export const deleteGroupChatMessageService = async (
 
   const delMessage = resultDelete[1];
 
+  io.to(conversation._id.toString()).emit("delMessage", delMessage);
+
   return {
     status: 200,
     msg: delMessage,
+  };
+};
+
+/* ---------- ADD PARTICIPANT TO GROUP  ---------- */
+export const addToGroupService = async (
+  user,
+  conversationId,
+  participantId
+) => {
+  const conversation = await Conversation.findById(conversationId);
+
+  if (!conversation) {
+    return {
+      status: 404,
+      msg: "Conversation not found",
+    };
+  }
+
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
+    };
+  }
+
+  const participant = await User.findById(participantId);
+
+  if (!participant) {
+    return {
+      status: 404,
+      msg: "Participant not found",
+    };
+  }
+
+  conversation.participants.push(participant._id);
+  await conversation.save();
+
+  const participantSocketId = await getReceiverSocketId(participantId);
+  if (participantSocketId) {
+    io.to(participantSocketId).emit("removedFromGroup", conversation);
+  }
+
+  return {
+    status: 200,
+    msg: conversation,
+  };
+};
+
+/* ---------- REMOVE PARTICIPANT FROM GROUP  ---------- */
+export const removeFromGroupService = async (
+  user,
+  conversationId,
+  participantId
+) => {
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation) {
+    return {
+      status: 404,
+      msg: "Conversation not found",
+    };
+  }
+
+  if (conversation.status === 2) {
+    return {
+      status: 400,
+      msg: "Conversation have been retired",
+    };
+  }
+
+  const participant = await User.findById(participantId);
+  if (!participant) {
+    return {
+      status: 404,
+      msg: "Participant not found",
+    };
+  }
+
+  await conversation.updateOne({
+    $pull: {
+      participants: participantId,
+    },
+  });
+
+  const participantSocketId = await getReceiverSocketId(participantId);
+  if (participantSocketId) {
+    io.to(participantSocketId).emit("removedFromGroup", conversation);
+  }
+
+  return {
+    status: 200,
+    msg: conversation,
+  };
+};
+
+/* ---------- RETIRE GROUP  ---------- */
+export const retireGroup = async (user, conversationId) => {
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation) {
+    return {
+      status: 404,
+      msg: "Conversation not found",
+    };
+  }
+
+  conversation.status = 2;
+  await conversation.save();
+
+  return {
+    status: 200,
+    msg: conversation,
   };
 };

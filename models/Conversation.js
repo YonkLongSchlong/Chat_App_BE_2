@@ -18,6 +18,9 @@ const conversationSchema = new mongoose.Schema({
       default: [],
     },
   ],
+  status: {
+    type: Number,
+  },
 });
 
 const Conversation = mongoose.model("Conversation", conversationSchema);

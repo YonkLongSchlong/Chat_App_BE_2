@@ -16,19 +16,19 @@ dotenv.config();
 app.use(express.json({ limit: "30mb", extended: true }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use(cookieParser());
-const corsOpts = {
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: [
-    "Origin",
-    "X-Requested-With",
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "Access-Control-Allow-Origin",
-  ],
-};
-app.use(cors(corsOpts));
+// const corsOpts = {
+//   origin: "*",
+//   methods: ["GET", "POST", "PUT", "DELETE"],
+//   allowedHeaders: [
+//     "Origin",
+//     "X-Requested-With",
+//     "Content-Type",
+//     "Accept",
+//     "Authorization",
+//     "Access-Control-Allow-Origin",
+//   ],
+// };
+// app.use(cors(corsOpts));
 // app.use(bodyParser.urlencoded({ extended: false }));
 // app.use(bodyParser.json());
 
