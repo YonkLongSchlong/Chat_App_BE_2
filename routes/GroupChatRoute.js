@@ -8,6 +8,7 @@ import {
   createGroupChat,
   deleteGroupChatMessage,
   getGroupChatMessages,
+  getParticipantsFromGroup,
   removeFromGroupChat,
   sendGroupChatFiles,
   sendGroupChatImages,
@@ -35,5 +36,6 @@ route.post("/messages/share", verifyToken, shareGroupChatMessage); // Chuyển t
 route.post("/add", verifyToken, addToGroupChat); // Thêm participants vào group chat
 route.post("/delete", verifyToken, removeFromGroupChat); // Thêm participants vào group chat
 route.post("/close", verifyToken, closeGroupChat); // Giải tán group
+route.get("/get/:conversationId", verifyToken, getParticipantsFromGroup); // Lấy danh sách participants trong group
 
 export default route;

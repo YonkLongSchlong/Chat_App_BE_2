@@ -4,6 +4,7 @@ import {
   createGroupChatService,
   deleteGroupChatMessageService,
   getGroupChatMessagesService,
+  getParticipantsFromGroupService,
   removeFromGroupChatService,
   sendGroupChatFilesService,
   sendGroupChatImagesService,
@@ -188,5 +189,23 @@ export const closeGroupChat = async (req, res) => {
     res
       .status(500)
       .json({ Error: "Error in closing group chat", msg: error.msg });
+  }
+};
+
+/* ---------- GET PARTICIPANTS GROM GROUP CHAT ---------- */
+export const getParticipantsFromGroup = async (req, res) => {
+  try {
+    const user = req.user;
+    const { conversationId } = req.params;
+    const response = await getParticipantsFromGroupService(
+      user,
+      conversationId
+    );
+    return res.status(response.status).json(response.msg);
+  } catch (error) {
+    return res.status(500).json({
+      Error: "Error in getting participants from group chat",
+      msg: error.msg,
+    });
   }
 };

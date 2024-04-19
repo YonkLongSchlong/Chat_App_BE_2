@@ -35,20 +35,18 @@ export const createGroupChatService = async (
 /* ---------- GET MESSAGES FROM GROUP CHAT SERVICE ---------- */
 export const getGroupChatMessagesService = async (user, conversationId) => {
   const userId = user._id.toString();
-  const conversation = await Conversation.findById(conversationId).populate(
-    "messages"
-  );
+  const messages = await Message.find({ receiverId: conversationId });
 
-  if (!conversation) {
+  if (messages.length == 0) {
     return {
-      status: 404,
-      msg: "Conversation not found",
+      status: 200,
+      msg: [],
     };
   }
 
   return {
     status: 200,
-    msg: conversation.messages,
+    msg: messages,
   };
 };
 
@@ -82,7 +80,7 @@ export const sendGroupChatMessageService = async (
     };
   }
 
-  const newMessage = new Message({
+  let newMessage = new Message({
     senderId: userId,
     receiverId: conversation._id.toString(),
     message: message,
@@ -91,11 +89,12 @@ export const sendGroupChatMessageService = async (
 
   if (newMessage) {
     conversation.messages.push(newMessage);
-    await Promise.all([conversation.save(), newMessage.save()]).catch(
-      (error) => {
-        throw new Error(error.message);
-      }
-    );
+    const result = await Promise.all([
+      conversation.save(),
+      newMessage.save(),
+    ]).catch((error) => {
+      throw new Error(error.message);
+    });
 
     conversation.participants.forEach((participant) => {
       const participantSocketId = getReceiverSocketId(
@@ -433,18 +432,15 @@ export const addToGroupChatService = async (
     await conversation.save();
   }
 
-  conversation.participants.forEach(async (participant) => {
-    const participantSocketId = getReceiverSocketId(participant._id.toString());
-    if (participantSocketId) {
-      io.to(participantSocketId).emit("newConversation", conversation);
-    }
-  });
+  const participantSocketIdAdd = getReceiverSocketId(participantId);
+  if (participantSocketIdAdd) {
+    io.to(participantSocketIdAdd).emit("newConversation", conversation);
+  }
 
   conversation.participants.forEach((participant) => {
     const participantSocketId = getReceiverSocketId(participant._id.toString());
-    if (participantSocketId) {
+    if (participantSocketId && participantSocketId != participantSocketIdAdd) {
       io.to(participantSocketId).emit("notification");
-      io.to(participantSocketId).emit("updateGroupChat");
     }
   });
 
@@ -460,7 +456,7 @@ export const removeFromGroupChatService = async (
   conversationId,
   participantId
 ) => {
-  const conversation = await Conversation.findById(conversationId);
+  let conversation = await Conversation.findById(conversationId);
   if (!conversation) {
     return {
       status: 404,
@@ -489,15 +485,19 @@ export const removeFromGroupChatService = async (
     },
   });
 
-  const participantSocketId = await getReceiverSocketId(participantId);
-  if (participantSocketId) {
-    io.to(participantSocketId).emit("delConversation", conversation);
+  conversation = await Conversation.findById(conversationId);
+
+  const participantSocketIdAdd = getReceiverSocketId(participantId);
+  if (participantSocketIdAdd) {
+    io.to(participantSocketIdAdd).emit("delConversation", conversation);
+    io.to(participantSocketIdAdd).emit("remove");
   }
+
   conversation.participants.forEach((participant) => {
     const participantSocketId = getReceiverSocketId(participant._id.toString());
-    if (participantSocketId) {
+    if (participantSocketId && participantSocketId != participantSocketIdAdd) {
       io.to(participantSocketId).emit("notification");
-      io.to(participantSocketId).emit("updateGroupChat");
+      // io.to(participantSocketId).emit("updateGroupChat");
     }
   });
 
@@ -524,11 +524,31 @@ export const closeGroupChatService = async (user, conversationId) => {
     const participantSocketId = getReceiverSocketId(participant._id.toString());
     if (participantSocketId) {
       io.to(participantSocketId).emit("notification");
+      io.to(participantSocketId).emit("close");
     }
   });
 
   return {
     status: 200,
     msg: conversation,
+  };
+};
+
+/* ---------- GET PARTICIPANTS FROM GROUP  ---------- */
+export const getParticipantsFromGroupService = async (user, conversationId) => {
+  const conversation = await Conversation.findById(conversationId).populate(
+    "participants"
+  );
+
+  if (!conversation) {
+    return {
+      status: 404,
+      msg: "Conversation not found",
+    };
+  }
+
+  return {
+    status: 200,
+    msg: conversation.participants,
   };
 };
