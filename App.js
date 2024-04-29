@@ -7,30 +7,13 @@ import friendsRoute from "./routes/FriendsRoute.js";
 import messagesRoute from "./routes/MessagesRoute.js";
 import groupChatRoute from "./routes/GroupChatRoute.js";
 import cookieParser from "cookie-parser";
-import bodyParser from "body-parser";
-import cors from "cors";
 import { app, server } from "./utils/socket.js";
-/* ---------- CONFIG ---------- */
 
+/* ---------- CONFIG ---------- */
 dotenv.config();
 app.use(express.json({ limit: "30mb", extended: true }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use(cookieParser());
-// const corsOpts = {
-//   origin: "*",
-//   methods: ["GET", "POST", "PUT", "DELETE"],
-//   allowedHeaders: [
-//     "Origin",
-//     "X-Requested-With",
-//     "Content-Type",
-//     "Accept",
-//     "Authorization",
-//     "Access-Control-Allow-Origin",
-//   ],
-// };
-// app.use(cors(corsOpts));
-// app.use(bodyParser.urlencoded({ extended: false }));
-// app.use(bodyParser.json());
 
 /* ---------- AUTH ROUTE ---------- */
 app.use("/auth", authRoute);
@@ -49,12 +32,12 @@ app.use("/group", groupChatRoute);
 
 /* ---------- CONNECT DB ---------- */
 mongoose
-  .connect(process.env.MONGO_URI)
-  .then(
-    server.listen(process.env.PORT, () => {
-      console.log("Listening on port " + process.env.PORT);
-    })
-  )
-  .catch((error) => {
-    console.log(error);
-  });
+    .connect(process.env.MONGO_URI)
+    .then(
+        server.listen(process.env.PORT, () => {
+            console.log("Listening on port " + process.env.PORT);
+        })
+    )
+    .catch((error) => {
+        console.log(error);
+    });
