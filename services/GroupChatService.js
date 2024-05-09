@@ -2,7 +2,7 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { s3 } from "../utils/configAWS.js";
-import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
+import { getReceiverSocketId, io } from "../utils/socket.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -18,7 +18,10 @@ export const createGroupChatService = async (
         conversationImage:
             "https://essentialstuff.s3.ap-southeast-1.amazonaws.com/2352167.png",
         conversationType: "Group",
-    });
+        admin: [userId],
+    })
+        .then((conversation) => conversation.populate("participants"))
+        .then((conversation) => conversation);
 
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
@@ -37,7 +40,9 @@ export const createGroupChatService = async (
 
 /* ---------- GET MESSAGES FROM GROUP CHAT SERVICE ---------- */
 export const getGroupChatMessagesService = async (conversationId) => {
-    const messages = await Message.find({ conversationId: conversationId });
+    const messages = await Message.find({
+        conversationId: conversationId,
+    });
 
     if (messages.length == 0) {
         return {
@@ -163,7 +168,7 @@ export const sendGroupChatImagesService = async (
     function saveMessage(result, index) {
         const newMessage = new Message({
             senderId: userId,
-            receiverId: conversationId,
+            conversationId: conversationId,
             messageType: "image",
             messageUrl: result.Location,
             message: files[index].originalname,
@@ -321,14 +326,14 @@ export const shareGroupChatMessageService = async (
         if (message.messageType == "text") {
             newMessage = await Message.create({
                 senderId: userId,
-                receiverId: conversation._id.toString(),
+                conversationId: conversation._id.toString(),
                 messageType: "text",
                 message: message.message,
             });
         } else if (message.messageType == "image") {
             newMessage = await Message.create({
                 senderId: userId,
-                receiverId: conversation._id.toString(),
+                conversationId: conversation._id.toString(),
                 messageType: "image",
                 message: message.message,
                 messageUrl: message.messageUrl,
@@ -336,15 +341,13 @@ export const shareGroupChatMessageService = async (
         } else {
             newMessage = await Message.create({
                 senderId: userId,
-                receiverId: conversation._id.toString(),
+                conversationId: conversation._id.toString(),
                 messageType: "file",
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
         }
-
-        conversation.messages.push(newMessage._id);
-        await conversation.save();
+        await conversation.updateOne({ lastMessage: newMessage._id });
 
         conversation.participants.forEach((participant) => {
             const participantSocketId = getReceiverSocketId(
@@ -354,7 +357,7 @@ export const shareGroupChatMessageService = async (
                 io.to(participantSocketId).emit("notification");
             }
         });
-        io.to(conversation._id.toString()).emit("newMessage", newMessage);
+        io.to(conversation._id.toString()).emit(newMessage);
 
         return {
             status: 200,
@@ -370,7 +373,7 @@ export const deleteGroupChatMessageService = async (
     messageId
 ) => {
     const userId = user._id.toString();
-    const conversation = await Conversation.findById(conversationId);
+    let conversation = await Conversation.findById(conversationId);
     if (!conversation) {
         return {
             status: 404,
@@ -378,20 +381,18 @@ export const deleteGroupChatMessageService = async (
         };
     }
 
-    const resultFind = await Promise.all([
-        await Message.find({ conversationId: conversation._id }),
-        await Message.findById(messageId),
-    ]).catch((error) => {
-        throw new Error(error.message);
-    });
-
-    const messages = resultFind[0];
-    const message = resultFind[1];
-
     if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation has been closed",
+        };
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+        return {
+            status: 404,
+            msg: "Message not found",
         };
     }
 
@@ -401,32 +402,40 @@ export const deleteGroupChatMessageService = async (
             msg: "You don't have permission to delete this message",
         };
     }
+    const delMessage = await Message.findByIdAndDelete(messageId);
+    const messages = await Message.find({ conversationId });
 
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage._id !== conversation.lastMessage && lastMessage !== null) {
-        conversation.lastMessage = lastMessage._id;
-    } else {
-        conversation.lastMessage = "";
+
+    if (!messages.length > 0) {
+        conversation.lastMessage = undefined;
+        await conversation.save();
+
+        io.to(conversation._id.toString()).emit("delMessage", delMessage);
+        conversation.participants.forEach((participant) => {
+            const participantSocketId = getReceiverSocketId(
+                participant._id.toString()
+            );
+            if (participantSocketId) {
+                io.to(participantSocketId).emit("notification");
+            }
+        });
     }
 
-    const resultDelete = await Promise.all([
-        conversation.save(),
-        Message.findByIdAndDelete(messageId),
-    ]).catch((error) => {
-        throw new Error(error.message);
-    });
+    if (lastMessage._id !== conversation.lastMessage && messages.length > 0) {
+        conversation.lastMessage = lastMessage._id;
+        await conversation.save();
 
-    const delMessage = resultDelete[1];
-
-    io.to(conversation._id.toString()).emit("delMessage", delMessage);
-    conversation.participants.forEach((participant) => {
-        const participantSocketId = getReceiverSocketId(
-            participant._id.toString()
-        );
-        if (participantSocketId) {
-            io.to(participantSocketId).emit("notification");
-        }
-    });
+        io.to(conversation._id.toString()).emit("delMessage", delMessage);
+        conversation.participants.forEach((participant) => {
+            const participantSocketId = getReceiverSocketId(
+                participant._id.toString()
+            );
+            if (participantSocketId) {
+                io.to(participantSocketId).emit("notification");
+            }
+        });
+    }
 
     return {
         status: 200,
@@ -438,8 +447,10 @@ export const deleteGroupChatMessageService = async (
 export const addToGroupChatService = async (
     user,
     conversationId,
-    participantId
+    participantId,
+    participantsId
 ) => {
+    const userId = user._id.toString();
     const conversation = await Conversation.findById(conversationId);
 
     if (!conversation) {
@@ -456,10 +467,17 @@ export const addToGroupChatService = async (
         };
     }
 
+    const pushParticipant = () => {};
+
     const participant = await User.findById(participantId);
-    if (participant) {
+    if (participant && !conversation.participants.includes(participant._id)) {
         conversation.participants.push(participant._id);
         await conversation.save();
+    } else {
+        return {
+            status: 400,
+            msg: "Participant have already been added",
+        };
     }
 
     const participantSocketIdAdd = getReceiverSocketId(participantId);

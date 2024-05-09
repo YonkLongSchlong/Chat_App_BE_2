@@ -14,7 +14,7 @@ export const sendMessageService = async (user, receiverId, message) => {
     /* Nếu chưa tạo 1 conversation, message mới 
      Lưu message id vào conversation */
     if (!conversation) {
-        const conversation = await Conversation.create({
+        conversation = await Conversation.create({
             participants: [userId.toString(), receiverId],
             conversationType: "1v1",
         });
@@ -26,7 +26,7 @@ export const sendMessageService = async (user, receiverId, message) => {
         });
 
         conversation.lastMessage = newMessage._id;
-        await conversation
+        conversation = await conversation
             .save()
             .then((conversation) =>
                 conversation.populate(["participants", "lastMessage"])
@@ -593,7 +593,7 @@ export const getConversationsService = async (user) => {
             $in: [user._id],
         },
     })
-        .sort({ updatedAt: 1 })
+        .sort({ updatedAt: -1 })
         .populate("participants lastMessage");
 
     /* Nếu ko có conversations nào trả về mảng rỗng */

@@ -20,7 +20,7 @@ const sendMessage = async (req, res) => {
         return res.status(response.status).json(response.msg);
     } catch (error) {
         return res
-            .status(404)
+            .status(500)
             .json({ Error: "Error in send message", msg: error.message });
     }
 };
@@ -42,7 +42,7 @@ const sendImage = async (req, res) => {
         res.status(response.status).json(response.msg);
     } catch (error) {
         return res
-            .status(404)
+            .status(500)
             .json({ Error: "Error in send message", msg: error.message });
     }
 };
@@ -64,7 +64,7 @@ const sendFile = async (req, res) => {
         res.status(response.status).json(response.msg);
     } catch (error) {
         return res
-            .status(404)
+            .status(500)
             .json({ Error: "Error in send file", msg: error.message });
     }
 };
@@ -79,7 +79,7 @@ const shareMessage = async (req, res) => {
         return res.status(response.status).json(response.msg);
     } catch (error) {
         return res
-            .status(response.status)
+            .status(500)
             .json({ Error: "Error in share message", msg: error });
     }
 };
@@ -147,12 +147,12 @@ const deleteMessage = async (req, res) => {
 };
 
 export {
-    sendMessage,
-    sendImage,
-    sendFile,
-    shareMessage,
-    getMessages,
-    getConversations,
-    getConversation,
     deleteMessage,
+    getConversation,
+    getConversations,
+    getMessages,
+    sendFile,
+    sendImage,
+    sendMessage,
+    shareMessage,
 };

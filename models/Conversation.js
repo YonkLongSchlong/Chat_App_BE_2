@@ -25,6 +25,12 @@ const conversationSchema = new mongoose.Schema(
             type: mongoose.Schema.ObjectId,
             ref: "Message",
         },
+        admin: [
+            {
+                type: mongoose.Schema.ObjectId,
+                ref: "User",
+            },
+        ],
     },
     { timestamps: true }
 );

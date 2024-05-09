@@ -116,7 +116,7 @@ export const shareGroupChatMessage = async (req, res) => {
         );
         return res.status(resposne.status).json(resposne.msg);
     } catch (error) {
-        return res.status(resposne.status).json({
+        return res.status(500).json({
             Error: "Errorin sharing group message",
             msg: error.message,
         });
