@@ -1,4 +1,5 @@
 import {
+    addAdminPermissonService,
     addToGroupChatService,
     closeGroupChatService,
     createGroupChatService,
@@ -175,6 +176,25 @@ export const removeFromGroupChat = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             Error: "Error in remove participant from group chat",
+            msg: error.message,
+        });
+    }
+};
+
+/* ---------- ADD ADMIN PERMISSION ---------- */
+export const addAminPermission = async (req, res) => {
+    try {
+        const user = req.user;
+        const { conversationId, participantId } = req.body;
+        const response = await addAdminPermissonService(
+            user,
+            conversationId,
+            participantId
+        );
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res.status(500).json({
+            Error: "Error in adding admin permission",
             msg: error.message,
         });
     }

@@ -2,7 +2,7 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { s3 } from "../utils/configAWS.js";
-import { getReceiverSocketId, io } from "../utils/socket.js";
+import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -447,51 +447,51 @@ export const deleteGroupChatMessageService = async (
 export const addToGroupChatService = async (
     user,
     conversationId,
-    participantId,
     participantsId
 ) => {
     const userId = user._id.toString();
-    const conversation = await Conversation.findById(conversationId);
+    let conversation = await Conversation.findById(conversationId);
 
     if (!conversation) {
         return {
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation have been retired",
         };
-    }
-
-    const pushParticipant = () => {};
-
-    const participant = await User.findById(participantId);
-    if (participant && !conversation.participants.includes(participant._id)) {
-        conversation.participants.push(participant._id);
-        await conversation.save();
-    } else {
+    } else if (!conversation.admin.includes(userId)) {
         return {
             status: 400,
-            msg: "Participant have already been added",
+            msg: "You don't have permission to add users to this conversation",
         };
     }
 
-    const participantSocketIdAdd = getReceiverSocketId(participantId);
-    if (participantSocketIdAdd) {
-        io.to(participantSocketIdAdd).emit("newConversation", conversation);
-    }
+    participantsId.forEach((participantId) => {
+        conversation.participants.push(participantId);
+    });
+    await conversation
+        .save()
+        .then((conversation) => conversation.populate("participants"))
+        .then((conversation) => conversation);
+
+    participantsId.forEach((participantId) => {
+        const participantSocketIdAdd = getReceiverSocketId(participantId);
+        if (participantSocketIdAdd) {
+            io.to(participantSocketIdAdd).emit("newConversation", conversation);
+        }
+    });
 
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
         );
+        const userSocketId = getUserSocketId(userId);
         if (
-            participantSocketId &&
-            participantSocketId != participantSocketIdAdd
+            !participantsId.includes(participantSocketId) &&
+            participantSocketId !== userSocketId
         ) {
             io.to(participantSocketId).emit("notification");
             io.to(participantSocketId).emit("updateGroupChat");
@@ -510,7 +510,83 @@ export const removeFromGroupChatService = async (
     conversationId,
     participantId
 ) => {
+    const userId = user._id.toString();
     let conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    } else if (conversation.status === 2) {
+        return {
+            status: 400,
+            msg: "Conversation have been retired",
+        };
+    } else if (!conversation.admin.includes(userId)) {
+        return {
+            status: 400,
+            msg: "You don't have permission to remove this user from this conversation",
+        };
+    }
+
+    if (conversation.admin.includes(participantId)) {
+        conversation.participants = conversation.participants.filter(
+            (participant) => {
+                return participant.toString() !== participantId;
+            }
+        );
+        conversation.admin = conversation.admin.filter((participant) => {
+            return participant.toString() !== participantId;
+        });
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    } else {
+        conversation.participants = conversation.participants.filter(
+            (participant) => {
+                return participant.toString() !== participantId;
+            }
+        );
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    }
+
+    const removeParticipantSocketId = getReceiverSocketId(participantId);
+    if (removeParticipantSocketId) {
+        io.to(participantSocketIdAdd).emit("delConversation", conversation);
+        io.to(participantSocketIdAdd).emit("remove");
+    }
+
+    const userSocketId = getUserSocketId(userId);
+    conversation.participants.forEach((participant) => {
+        const participantSocketId = getReceiverSocketId(
+            participant._id.toString()
+        );
+        if (participantSocketId && participantSocketId !== userSocketId) {
+            io.to(participantSocketId).emit("notification");
+            io.to(participantSocketId).emit("updateGroupChat", conversation);
+        }
+    });
+
+    return {
+        status: 200,
+        msg: conversation,
+    };
+};
+
+/* ---------- ADD ADMIN PERMISSION TO USER  ---------- */
+export const addAdminPermissonService = async (
+    user,
+    conversationId,
+    participantId
+) => {
+    const userId = user._id.toString();
+    let conversation = await Conversation.findById(conversationId);
+
     if (!conversation) {
         return {
             status: 404,
@@ -526,37 +602,27 @@ export const removeFromGroupChatService = async (
     }
 
     const participant = await User.findById(participantId);
-    if (!participant) {
+    if (participant && !conversation.admin.includes(participant._id)) {
+        conversation.admin.push(participant._id);
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    } else {
         return {
-            status: 404,
-            msg: "Participant not found",
+            status: 400,
+            msg: "Participant have already an admin",
         };
     }
 
-    await conversation.updateOne({
-        $pull: {
-            participants: participantId,
-        },
-    });
-
-    conversation = await Conversation.findById(conversationId);
-
-    const participantSocketIdAdd = getReceiverSocketId(participantId);
-    if (participantSocketIdAdd) {
-        io.to(participantSocketIdAdd).emit("delConversation", conversation);
-        io.to(participantSocketIdAdd).emit("remove");
-    }
-
+    const userSocketId = getUserSocketId(userId);
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
         );
-        if (
-            participantSocketId &&
-            participantSocketId != participantSocketIdAdd
-        ) {
+        if (participantSocketId && participantSocketId !== userSocketId) {
             io.to(participantSocketId).emit("notification");
-            io.to(participantSocketId).emit("updateGroupChat");
+            io.to(participantSocketId).emit("updateGroupChat", conversation);
         }
     });
 
@@ -579,13 +645,13 @@ export const closeGroupChatService = async (user, conversationId) => {
     conversation.status = 2;
     await conversation.save();
 
+    io.to(conversationId).emit("close");
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
         );
         if (participantSocketId) {
             io.to(participantSocketId).emit("notification");
-            io.to(participantSocketId).emit("close");
         }
     });
 
