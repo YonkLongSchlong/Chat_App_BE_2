@@ -1,8 +1,8 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
-import { s3 } from "../utils/configAWS.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
+import { uploadFileToS3, uploadImageToS3 } from "../utils/uploadToS3.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -71,16 +71,12 @@ export const sendGroupChatMessageService = async (
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (!conversation.participants.includes(userId)) {
+    } else if (!conversation.participants.includes(userId)) {
         return {
             status: 400,
             msg: "You are not a member of this conversation",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation has been closed",
@@ -93,6 +89,13 @@ export const sendGroupChatMessageService = async (
         message: message,
         messageType: "text",
     });
+
+    if (!newMessage) {
+        return {
+            status: 500,
+            msg: "Error creating message",
+        };
+    }
 
     if (newMessage) {
         conversation.lastMessage = newMessage._id;
@@ -134,34 +137,16 @@ export const sendGroupChatImagesService = async (
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (!conversation.participants.includes(userId)) {
+    } else if (!conversation.participants.includes(userId)) {
         return {
             status: 400,
             msg: "You are not a member of this conversation",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation has been closed",
         };
-    }
-
-    /* Function upload ảnh lên s3 */
-    function uploadToS3(file) {
-        const image = file.originalname.split(".");
-        const fileType = image[image.length - 1];
-        const fileName = `${userId}_${Date.now().toString()}.${fileType}`;
-        const s3_params = {
-            Bucket: process.env.S3_IMAGE_MESSAGE_BUCKET,
-            Key: fileName,
-            Body: file.buffer,
-            ContentType: file.mimetype,
-        };
-        return s3.upload(s3_params).promise();
     }
 
     /* Function tạo và lưu messages mới */
@@ -178,7 +163,7 @@ export const sendGroupChatImagesService = async (
 
     const promiseUpload = [];
     files.forEach((file) => {
-        promiseUpload.push(uploadToS3(file));
+        promiseUpload.push(uploadImageToS3(file, userId));
     });
     const resultUpload = await Promise.all(promiseUpload).catch((error) => {
         throw new Error(error.message);
@@ -227,36 +212,26 @@ export const sendGroupChatFilesService = async (
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (!conversation.participants.includes(userId)) {
+    } else if (!conversation.participants.includes(userId)) {
         return {
             status: 400,
             msg: "You are not a member of this conversation",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation has been closed",
         };
     }
 
-    function uploadToS3(file) {
-        const fileSend = file.originalname.split(".");
-        const fileType = fileSend[fileSend.length - 1];
-        const fileName = `${userId}_${
-            file.originalname
-        }_${Date.now().toString()}.${fileType}`;
-        const s3_params = {
-            Bucket: process.env.S3_FILE_MESSAGE_BUCKET,
-            Key: fileName,
-            Body: file.buffer,
-            ContentType: file.mimetype,
-        };
-        return s3.upload(s3_params).promise();
-    }
+    const promiseUpload = [];
+    files.forEach((file) => {
+        promiseUpload.push(uploadFileToS3(file, userId));
+    });
+    const resultUpload = await Promise.all(promiseUpload).catch((error) => {
+        throw new Error(error.message);
+    });
+
     function saveMessage(result, index) {
         const newMessage = new Message({
             senderId: userId,
@@ -268,9 +243,75 @@ export const sendGroupChatFilesService = async (
         return newMessage.save();
     }
 
+    const promiseMessage = [];
+    resultUpload.forEach((result, index) => {
+        promiseMessage.push(saveMessage(result, index));
+    });
+    const resultMessage = await Promise.all(promiseMessage).catch((error) => {
+        throw new Error(error.message);
+    });
+
+    const lastMessage = resultMessage[resultMessage.length - 1];
+    conversation.lastMessage = lastMessage._id;
+    await conversation.save();
+
+    io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+    conversation.participants.forEach((participant) => {
+        const participantSocketId = getReceiverSocketId(
+            participant._id.toString()
+        );
+        if (participantSocketId) {
+            io.to(participantSocketId).emit("notification");
+        }
+    });
+
+    return {
+        status: 200,
+        msg: { resultMessage },
+    };
+};
+
+/* ---------- SEND VIDEO TO GROUP CHAT SERVICE ---------- */
+export const sendGroupChatVideoService = async (
+    user,
+    conversationId,
+    files
+) => {
+    const userId = user._id.toString();
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    } else if (!conversation.participants.includes(userId)) {
+        return {
+            status: 400,
+            msg: "You are not a member of this conversation",
+        };
+    } else if (conversation.status === 2) {
+        return {
+            status: 400,
+            msg: "Conversation has been closed",
+        };
+    }
+
+    /* Function tạo và lưu image messages mới */
+    function saveMessage(result, index) {
+        const newMessage = new Message({
+            senderId: userId,
+            conversationId: conversationId,
+            messageType: "video",
+            messageUrl: result.Location,
+            message: files[index].originalname,
+        });
+        return newMessage.save();
+    }
+
     const promiseUpload = [];
     files.forEach((file) => {
-        promiseUpload.push(uploadToS3(file));
+        promiseUpload.push(uploadFileToS3(file, userId));
     });
     const resultUpload = await Promise.all(promiseUpload).catch((error) => {
         throw new Error(error.message);
@@ -280,7 +321,7 @@ export const sendGroupChatFilesService = async (
     resultUpload.forEach((result, index) => {
         promiseMessage.push(saveMessage(result, index));
     });
-    const resultMessage = await Promise.all(promiseMessage).catch((error) => {
+    const resultMessage = await Promise.all(promiseMessage).catch(() => {
         throw new Error(error.message);
     });
 
@@ -321,6 +362,13 @@ export const shareGroupChatMessageService = async (
 
     const conversation = await Conversation.findById(conversationId);
 
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    }
+
     if (conversation) {
         let newMessage = {};
         if (message.messageType == "text") {
@@ -338,7 +386,7 @@ export const shareGroupChatMessageService = async (
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
-        } else {
+        } else if (message.messageType == "file") {
             newMessage = await Message.create({
                 senderId: userId,
                 conversationId: conversation._id.toString(),
@@ -346,7 +394,16 @@ export const shareGroupChatMessageService = async (
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
+        } else {
+            newMessage = await Message.create({
+                senderId: userId,
+                conversationId: conversation._id.toString(),
+                messageType: "video",
+                message: message.message,
+                messageUrl: message.messageUrl,
+            });
         }
+
         await conversation.updateOne({ lastMessage: newMessage._id });
 
         conversation.participants.forEach((participant) => {
@@ -379,12 +436,15 @@ export const deleteGroupChatMessageService = async (
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation has been closed",
+        };
+    } else if (!conversation.participants.includes(userId)) {
+        return {
+            status: 400,
+            msg: "You are not a member of this conversation",
         };
     }
 
@@ -394,14 +454,13 @@ export const deleteGroupChatMessageService = async (
             status: 404,
             msg: "Message not found",
         };
-    }
-
-    if (message.senderId.toString() !== userId) {
+    } else if (message.senderId.toString() !== userId) {
         return {
             status: 400,
-            msg: "You don't have permission to delete this message",
+            msg: "You don't have permission to revoke this message",
         };
     }
+
     const delMessage = await Message.findByIdAndDelete(messageId);
     const messages = await Message.find({ conversationId });
 
@@ -484,18 +543,15 @@ export const addToGroupChatService = async (
         }
     });
 
+    const userSocketId = getUserSocketId(userId);
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
         );
-        const userSocketId = getUserSocketId(userId);
-        if (
-            !participantsId.includes(participantSocketId) &&
-            participantSocketId !== userSocketId
-        ) {
-            io.to(participantSocketId).emit("notification");
-            io.to(participantSocketId).emit("updateGroupChat");
+        if (participantSocketId && participantSocketId !== userSocketId) {
+            io.to(participantSocketId).emit("updateGroupChat", conversation);
         }
+        io.to(participantSocketId).emit("notification");
     });
 
     return {
@@ -567,9 +623,9 @@ export const removeFromGroupChatService = async (
             participant._id.toString()
         );
         if (participantSocketId && participantSocketId !== userSocketId) {
-            io.to(participantSocketId).emit("notification");
             io.to(participantSocketId).emit("updateGroupChat", conversation);
         }
+        io.to(participantSocketId).emit("notification");
     });
 
     return {
@@ -592,12 +648,15 @@ export const addAdminPermissonService = async (
             status: 404,
             msg: "Conversation not found",
         };
-    }
-
-    if (conversation.status === 2) {
+    } else if (conversation.status === 2) {
         return {
             status: 400,
             msg: "Conversation have been retired",
+        };
+    } else if (!conversation.admin.includes(userId)) {
+        return {
+            status: 400,
+            msg: "Only admin can grant admin permission to others",
         };
     }
 
@@ -611,7 +670,66 @@ export const addAdminPermissonService = async (
     } else {
         return {
             status: 400,
-            msg: "Participant have already an admin",
+            msg: "This user have already been an admin",
+        };
+    }
+
+    const userSocketId = getUserSocketId(userId);
+    conversation.participants.forEach((participant) => {
+        const participantSocketId = getReceiverSocketId(
+            participant._id.toString()
+        );
+        if (participantSocketId && participantSocketId !== userSocketId) {
+            io.to(participantSocketId).emit("notification");
+            io.to(participantSocketId).emit("updateGroupChat", conversation);
+        }
+    });
+
+    return {
+        status: 200,
+        msg: conversation,
+    };
+};
+
+/* ---------- REVOKE ADMIN PERMISSION FROM USER  ---------- */
+export const revokeAdminPermissonService = async (
+    user,
+    conversationId,
+    participantId
+) => {
+    const userId = user._id.toString();
+    let conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    } else if (conversation.status === 2) {
+        return {
+            status: 400,
+            msg: "Conversation have been retired",
+        };
+    } else if (!conversation.admin.includes(userId)) {
+        return {
+            status: 400,
+            msg: "Only admin can revoke admin permission from others",
+        };
+    }
+
+    const participant = await User.findById(participantId);
+    if (participant && conversation.admin.includes(participant._id)) {
+        conversation.admin = conversation.admin.filter((id) => {
+            return id.toString() !== participant._id.toString();
+        });
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    } else {
+        return {
+            status: 400,
+            msg: "This user is not an admin",
         };
     }
 

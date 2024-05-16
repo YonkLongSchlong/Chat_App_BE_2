@@ -7,6 +7,7 @@ import {
     getGroupChatMessagesService,
     getParticipantsFromGroupService,
     removeFromGroupChatService,
+    revokeAdminPermissonService,
     sendGroupChatFilesService,
     sendGroupChatImagesService,
     sendGroupChatMessageService,
@@ -147,11 +148,11 @@ export const deleteGroupChatMessage = async (req, res) => {
 export const addToGroupChat = async (req, res) => {
     try {
         const user = req.user;
-        const { conversationId, participantId } = req.body;
+        const { conversationId, participantsId } = req.body;
         const response = await addToGroupChatService(
             user,
             conversationId,
-            participantId
+            participantsId
         );
         return res.status(response.status).json(response.msg);
     } catch (error) {
@@ -195,6 +196,25 @@ export const addAminPermission = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             Error: "Error in adding admin permission",
+            msg: error.message,
+        });
+    }
+};
+
+/* ---------- REVOKE ADMIN PERMISSION ---------- */
+export const revokeAdminPermission = async (req, res) => {
+    try {
+        const user = req.user;
+        const { conversationId, participantId } = req.body;
+        const response = await revokeAdminPermissonService(
+            user,
+            conversationId,
+            participantId
+        );
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res.status(500).json({
+            Error: "Error in revoking admin permission",
             msg: error.message,
         });
     }

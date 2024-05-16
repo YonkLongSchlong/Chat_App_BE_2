@@ -1,7 +1,7 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
-import { s3 } from "../utils/configAWS.js";
+import { uploadFileToS3, uploadImageToS3 } from "../utils/uploadToS3.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
 export const sendMessageService = async (user, receiverId, message) => {
@@ -87,20 +87,6 @@ export const sendMessageService = async (user, receiverId, message) => {
 
 /* ---------- SEND IMAGE SERVICE ---------- */
 export const sendImageService = async (user, receiverId, files) => {
-    /* Function upload ảnh lên s3 */
-    function uploadToS3(file) {
-        const image = file.originalname.split(".");
-        const fileType = image[image.length - 1];
-        const fileName = `${userId}_${Date.now().toString()}.${fileType}`;
-        const s3_params = {
-            Bucket: process.env.S3_IMAGE_MESSAGE_BUCKET,
-            Key: fileName,
-            Body: file.buffer,
-            ContentType: file.mimetype,
-        };
-        return s3.upload(s3_params).promise();
-    }
-
     /* Function tạo và lưu messages mới */
     function saveMessage(result, index) {
         const newMessage = new Message({
@@ -128,7 +114,7 @@ export const sendImageService = async (user, receiverId, files) => {
 
         const promiseUpload = [];
         files.forEach((file) => {
-            promiseUpload.push(uploadToS3(file));
+            promiseUpload.push(uploadImageToS3(file, userId));
         });
         const resultUpload = await Promise.all(promiseUpload).catch((error) => {
             throw new Error(error.message);
@@ -177,7 +163,7 @@ export const sendImageService = async (user, receiverId, files) => {
         /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
         const promiseUpload = [];
         files.forEach((file) => {
-            promiseUpload.push(uploadToS3(file));
+            promiseUpload.push(uploadImageToS3(file, userId));
         });
         const resultUpload = await Promise.all(promiseUpload).catch((error) => {
             throw new Error(error.message);
@@ -218,22 +204,6 @@ export const sendImageService = async (user, receiverId, files) => {
 
 /* ---------- SEND FILE SERVICE ---------- */
 export const sendFileService = async (user, receiverId, files) => {
-    /* Function upload file lên s3 */
-    function uploadToS3(file) {
-        const fileSend = file.originalname.split(".");
-        const fileType = fileSend[fileSend.length - 1];
-        const fileName = `${userId}_${
-            file.originalname
-        }_${Date.now().toString()}.${fileType}`;
-        const s3_params = {
-            Bucket: process.env.S3_FILE_MESSAGE_BUCKET,
-            Key: fileName,
-            Body: file.buffer,
-            ContentType: file.mimetype,
-        };
-        return s3.upload(s3_params).promise();
-    }
-
     /* Function tạo và lưu messages mới */
     function saveMessage(result, index) {
         const newMessage = new Message({
@@ -262,7 +232,7 @@ export const sendFileService = async (user, receiverId, files) => {
         /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
         const promiseUpload = [];
         files.forEach((file) => {
-            promiseUpload.push(uploadToS3(file));
+            promiseUpload.push(uploadFileToS3(file, userId));
         });
         const resultUpload = await Promise.all(promiseUpload).catch((error) => {
             throw new Error(error.message);
@@ -309,7 +279,7 @@ export const sendFileService = async (user, receiverId, files) => {
         /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
         const promiseUpload = [];
         files.forEach((file) => {
-            promiseUpload.push(uploadToS3(file));
+            promiseUpload.push(uploadFileToS3(file, userId));
         });
         const resultUpload = await Promise.all(promiseUpload).catch((error) => {
             throw new Error(error.message);
@@ -394,7 +364,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
-        } else {
+        } else if (message.messageType == "file") {
             conversation = await Conversation.create({
                 participants: [userId, receiverId],
                 conversationType: "1v1",
@@ -403,6 +373,18 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 senderId: userId,
                 conversationId: conversation._id,
                 messageType: "file",
+                message: message.message,
+                messageUrl: message.messageUrl,
+            });
+        } else {
+            conversation = await Conversation.create({
+                participants: [userId, receiverId],
+                conversationType: "1v1",
+            });
+            newMessage = await Message.create({
+                senderId: userId,
+                conversationId: conversation._id,
+                messageType: "video",
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
@@ -450,11 +432,19 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 message: message.message,
                 messageUrl: message.messageUrl,
             });
-        } else {
+        } else if (message.messageType == "file") {
             newMessage = await Message.create({
                 senderId: userId,
                 conversationId: conversation._id,
                 messageType: "file",
+                message: message.message,
+                messageUrl: message.messageUrl,
+            });
+        } else {
+            newMessage = await Message.create({
+                senderId: userId,
+                conversationId: conversation._id,
+                messageType: "video",
                 message: message.message,
                 messageUrl: message.messageUrl,
             });

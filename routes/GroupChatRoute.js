@@ -8,6 +8,7 @@ import {
     getGroupChatMessages,
     getParticipantsFromGroup,
     removeFromGroupChat,
+    revokeAdminPermission,
     sendGroupChatFiles,
     sendGroupChatImages,
     sendGroupChatMessage,
@@ -35,7 +36,8 @@ route.post(
 ); // Gửi file
 route.post("/messages/share", verifyToken, shareGroupChatMessage); // Chuyển tiếp tin nhắn
 route.post("/add", verifyToken, addToGroupChat); // Thêm participants vào group chat
-route.post("/admin", verifyToken, addAminPermission); // Ban quyền admin cho user
+route.post("/admin/grant", verifyToken, addAminPermission); // Ban quyền admin cho user
+route.post("/admin/revoke", verifyToken, revokeAdminPermission); // Xóa quyền admin cho user
 route.post("/delete", verifyToken, removeFromGroupChat); // Xóa participants vào group chat
 route.post("/close", verifyToken, closeGroupChat); // Giải tán group
 route.get("/get/:conversationId", verifyToken, getParticipantsFromGroup); // Lấy danh sách participants trong group
