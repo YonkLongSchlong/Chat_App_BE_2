@@ -1,17 +1,17 @@
 import mongoose from "mongoose";
 
 const OtpSchema = new mongoose.Schema({
-  phone: {
-    type: String,
-  },
-  otp: {
-    type: String,
-  },
-  created: {
-    type: Date,
-    default: Date.now(),
-    index: { expires: 20 },
-  },
+    phone: {
+        type: String,
+    },
+    otp: {
+        type: String,
+    },
+    created: {
+        type: Date,
+        default: Date.now(),
+        index: { expires: 180 },
+    },
 });
 
 const Otp = mongoose.model("Otp", OtpSchema);

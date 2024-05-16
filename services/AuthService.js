@@ -1,11 +1,12 @@
 import bcryptjs from "bcryptjs";
+import nodemailer from "nodemailer";
 import Otp from "../models/Otp.js";
 import User from "../models/User.js";
 import { generateOtp } from "../utils/generateOtp.js";
 import { generateToken } from "../utils/generateToken.js";
 
 /* ---------- REGISTER ---------- */
-export const registerService = async (phone) => {
+export const registerService = async (phone, email) => {
     /* Tìm xem sđt đã được sử dụng hay chưa */
     const existUser = await User.findOne({ phone: phone }).lean();
     if (existUser) {
@@ -17,7 +18,25 @@ export const registerService = async (phone) => {
 
     /* Tạo Otp */
     const genOtp = generateOtp();
-    console.log("Otp is:" + genOtp);
+    console.log("Your otp is: " + genOtp);
+
+    /* Gửi Otp qua mail của user */
+    const transporter = nodemailer.createTransport({
+        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false, // Use `true` for port 465, `false` for all other ports
+        auth: {
+            user: "beeline3022@gmail.com",
+            pass: "disaoxkojqjkpmdy",
+        },
+    });
+    const info = await transporter.sendMail({
+        from: '"Pandalo" <beeline3022@gmail.com>', // sender address
+        to: email, // list of receivers
+        subject: "Verify your account with otp", // Subject line
+        text: "Your otp is: " + genOtp, // plain text body
+    });
 
     /* Mã hóa otp */
     const salt = bcryptjs.genSaltSync(10);
@@ -38,6 +57,7 @@ export const verifyRegisterService = async (
     username,
     password,
     phone,
+    email,
     gender,
     dob,
     otp
@@ -74,6 +94,7 @@ export const verifyRegisterService = async (
             username: username,
             password: hashPassword,
             phone: phone,
+            email: email,
             gender: gender,
             dob: dob,
         });

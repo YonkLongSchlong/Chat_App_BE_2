@@ -17,6 +17,11 @@ const userSchema = new mongoose.Schema(
             required: true,
             unique: true,
         },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+        },
         avatar: {
             type: String,
             default: "https://example.com/cute-pusheen.jpg",
