@@ -1,12 +1,13 @@
-import express from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
 import dotenv from "dotenv";
+import express from "express";
 import mongoose from "mongoose";
 import authRoute from "./routes/AuthRoute.js";
-import userRoute from "./routes/UserRoute.js";
 import friendsRoute from "./routes/FriendsRoute.js";
-import messagesRoute from "./routes/MessagesRoute.js";
 import groupChatRoute from "./routes/GroupChatRoute.js";
-import cookieParser from "cookie-parser";
+import messagesRoute from "./routes/MessagesRoute.js";
+import userRoute from "./routes/UserRoute.js";
 import { app, server } from "./utils/socket.js";
 
 /* ---------- CONFIG ---------- */
@@ -14,6 +15,23 @@ dotenv.config();
 app.use(express.json({ limit: "30mb", extended: true }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use(cookieParser());
+
+const corsOpts = {
+    origin: "*",
+
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+
+    allowedHeaders: [
+        "Origin",
+        "X-Requested-With",
+        "Content-Type",
+        "Accept",
+        "Authorization",
+        "Access-Control-Allow-Origin",
+    ],
+};
+
+app.use(cors(corsOpts));
 
 /* ---------- AUTH ROUTE ---------- */
 app.use("/auth", authRoute);

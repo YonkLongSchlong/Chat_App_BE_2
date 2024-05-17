@@ -1,7 +1,11 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
-import { uploadFileToS3, uploadImageToS3 } from "../utils/uploadToS3.js";
+import {
+    uploadFileToS3,
+    uploadImageToS3,
+    uploadVideoToS3,
+} from "../utils/uploadToS3.js";
 
 /* ---------- SEND MESSAGE SERVICE ---------- */
 export const sendMessageService = async (user, receiverId, message) => {
@@ -271,7 +275,7 @@ export const sendFileService = async (user, receiverId, files) => {
 
         return {
             status: 200,
-            msg: resultMessage,
+            msg: { resultMessage },
         };
     }
 
@@ -311,7 +315,121 @@ export const sendFileService = async (user, receiverId, files) => {
 
         return {
             status: 200,
-            msg: resultMessage,
+            msg: { resultMessage },
+        };
+    }
+};
+
+/* ---------- SEND VIDEO SERVICE ---------- */
+export const sendVideoService = async (user, receiverId, files) => {
+    /* Function tạo và lưu messages mới */
+    function saveMessage(result, index) {
+        const newMessage = new Message({
+            senderId: userId,
+            conversationId: conversation._id,
+            messageType: "video",
+            messageUrl: result.Location,
+            message: files[index].originalname,
+        });
+        return newMessage.save();
+    }
+
+    /* Tìm xem 2 người đã từng gửi tin nhắn với nhau hay chưa */
+    const userId = user._id.toString();
+    let conversation = await Conversation.findOne({
+        participants: { $all: [userId, receiverId], $size: 2 },
+    });
+
+    /* Nếu chưa tạo conversation mới */
+    if (!conversation) {
+        conversation = await Conversation.create({
+            participants: [userId, receiverId],
+            conversationType: "1v1",
+        });
+
+        /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
+        const promiseUpload = [];
+        files.forEach((file) => {
+            promiseUpload.push(uploadVideoToS3(file, userId));
+        });
+        const resultUpload = await Promise.all(promiseUpload).catch((error) => {
+            throw new Error(error.message);
+        });
+
+        /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
+        const promiseMessage = [];
+        resultUpload.forEach((result, index) => {
+            promiseMessage.push(saveMessage(result, index));
+        });
+        const resultMessage = await Promise.all(promiseMessage).catch(
+            (error) => {
+                throw new Error(error.message);
+            }
+        );
+
+        /* Lưu messages id vào conversation */
+        conversation.lastMessage = resultMessage[resultMessage.length - 1];
+        await conversation
+            .save()
+            .then((conversation) =>
+                conversation.populate(["participants", "lastMessage"])
+            )
+            .then((conversation) => conversation);
+
+        const userSocketId = getUserSocketId(userId.toString());
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        if (receiverSocketId && userSocketId) {
+            io.to(receiverSocketId)
+                .to(userSocketId)
+                .emit("newConversation", conversation);
+            io.to(receiverSocketId).emit("newMessage", resultMessage);
+        } else {
+            io.to(userSocketId).emit("newConversation", conversation);
+        }
+
+        return {
+            status: 200,
+            msg: { resultMessage },
+        };
+    }
+
+    if (conversation) {
+        /* Đẩy các promise upaload ảnh lên s3 vào trong mảng promiseUpload để promise all */
+        const promiseUpload = [];
+        files.forEach((file) => {
+            promiseUpload.push(uploadVideoToS3(file, userId));
+        });
+        const resultUpload = await Promise.all(promiseUpload).catch((error) => {
+            throw new Error(error.message);
+        });
+
+        /* Đẩy các promise tạo messages mới vào mảng promiseMessage để prmomise all*/
+        const promiseMessage = [];
+        resultUpload.forEach((result, index) => {
+            promiseMessage.push(saveMessage(result, index));
+        });
+        const resultMessage = await Promise.all(promiseMessage).catch(
+            (error) => {
+                throw new Error(error.message);
+            }
+        );
+
+        /* Lưu messages id vào conversation */
+        conversation.lastMessage = resultMessage[resultMessage.length - 1];
+        await conversation.save();
+
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        const userSocketId = getUserSocketId(userId);
+        if (receiverSocketId && userSocketId) {
+            io.to(receiverSocketId).emit("newMessage", resultMessage);
+            io.to(receiverSocketId).to(userSocketId).emit("notification");
+        } else {
+            io.to(userSocketId).emit("notification");
+        }
+
+        return {
+            status: 200,
+            msg: { resultMessage },
         };
     }
 };

@@ -1,5 +1,4 @@
 import express from "express";
-import { verifyToken } from "../middleware/verifyToken.js";
 import {
     deleteMessage,
     getConversation,
@@ -8,8 +7,10 @@ import {
     sendFile,
     sendImage,
     sendMessage,
+    sendVideo,
     shareMessage,
 } from "../controllers/MessageController.js";
+import { verifyToken } from "../middleware/verifyToken.js";
 import { upload } from "../utils/configMulter.js";
 
 const route = express.Router();
@@ -26,6 +27,12 @@ route.post(
     verifyToken,
     upload.array("files[]", 10),
     sendFile
+); // Gửi file
+route.post(
+    "/send/video/:receiverId",
+    verifyToken,
+    upload.array("videos[]", 10),
+    sendVideo
 ); // Gửi file
 route.post("/share/:receiverId", verifyToken, shareMessage); // Chuyển tiếp tin nhắn
 route.get("/:userToChatId", verifyToken, getMessages); // Lấy tin nhắn

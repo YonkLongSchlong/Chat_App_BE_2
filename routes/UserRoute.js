@@ -1,16 +1,16 @@
 import express from "express";
-import { verifyToken } from "../middleware/verifyToken.js";
 import {
-  getUsersByPhones,
-  updateBio,
-  updatePassword,
-  updatePhoneNumber,
-  updateProfile,
-  findUser,
-  getUsers,
-  uploadAvatar,
-  findUserByPhone,
+    findUser,
+    findUserByPhone,
+    getUsers,
+    getUsersByPhones,
+    updateBio,
+    updatePassword,
+    updatePhoneNumber,
+    updateProfile,
+    uploadAvatar,
 } from "../controllers/UserController.js";
+import { verifyToken } from "../middleware/verifyToken.js";
 import { upload } from "../utils/configMulter.js";
 const router = express.Router();
 

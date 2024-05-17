@@ -1,17 +1,18 @@
 import {
-    addAdminPermissonService,
-    addToGroupChatService,
-    closeGroupChatService,
-    createGroupChatService,
-    deleteGroupChatMessageService,
-    getGroupChatMessagesService,
-    getParticipantsFromGroupService,
-    removeFromGroupChatService,
-    revokeAdminPermissonService,
-    sendGroupChatFilesService,
-    sendGroupChatImagesService,
-    sendGroupChatMessageService,
-    shareGroupChatMessageService,
+	addAdminPermissonService,
+	addToGroupChatService,
+	closeGroupChatService,
+	createGroupChatService,
+	deleteGroupChatMessageService,
+	getGroupChatMessagesService,
+	getParticipantsFromGroupService,
+	removeFromGroupChatService,
+	revokeAdminPermissonService,
+	sendGroupChatFilesService,
+	sendGroupChatImagesService,
+	sendGroupChatMessageService,
+	sendGroupChatVideosService,
+	shareGroupChatMessageService,
 } from "../services/GroupChatService.js";
 
 /* ---------- CREATE GROUP CHAT ---------- */
@@ -103,6 +104,26 @@ export const sendGroupChatFiles = async (req, res) => {
         return res
             .status(500)
             .json({ Error: "Error in seding files", msg: error.message });
+    }
+};
+
+/* ---------- SEND FILES TO GROUP CHAT ---------- */
+export const sendGroupChatVideos = async (req, res) => {
+    try {
+        const user = req.user;
+        const { conversationId } = req.body;
+        const files = req.files;
+
+        const response = await sendGroupChatVideosService(
+            user,
+            conversationId,
+            files
+        );
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res
+            .status(500)
+            .json({ Error: "Error in sending videos", msg: error.message });
     }
 };
 

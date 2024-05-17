@@ -1,4 +1,5 @@
 import {
+    findUserByTokenService,
     loginService,
     logoutService,
     registerService,
@@ -67,4 +68,17 @@ const logout = async (req, res) => {
     }
 };
 
-export { login, logout, register, verifyRegister };
+/* ----------  FIND USER BY TOKEN ----------  */
+const findUserByToken = async (req, res) => {
+    try {
+        const user = req.user;
+        const response = await findUserByTokenService(user);
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res
+            .status(500)
+            .json({ Error: "Error in find user by token", msg: error.message });
+    }
+};
+
+export { findUserByToken, login, logout, register, verifyRegister };

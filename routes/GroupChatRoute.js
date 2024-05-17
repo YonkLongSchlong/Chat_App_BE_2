@@ -12,6 +12,7 @@ import {
     sendGroupChatFiles,
     sendGroupChatImages,
     sendGroupChatMessage,
+    sendGroupChatVideos,
     shareGroupChatMessage,
 } from "../controllers/GroupChatController.js";
 import { verifyToken } from "../middleware/verifyToken.js";
@@ -34,6 +35,12 @@ route.post(
     upload.array("files[]"),
     sendGroupChatFiles
 ); // Gửi file
+route.post(
+    "/messages/send/videos",
+    verifyToken,
+    upload.array("videos[]"),
+    sendGroupChatVideos
+); // Gửi videos
 route.post("/messages/share", verifyToken, shareGroupChatMessage); // Chuyển tiếp tin nhắn
 route.post("/add", verifyToken, addToGroupChat); // Thêm participants vào group chat
 route.post("/admin/grant", verifyToken, addAminPermission); // Ban quyền admin cho user

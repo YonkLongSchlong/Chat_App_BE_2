@@ -18,7 +18,6 @@ export const registerService = async (phone, email) => {
 
     /* Tạo Otp */
     const genOtp = generateOtp();
-    console.log("Your otp is: " + genOtp);
 
     /* Gửi Otp qua mail của user */
     const transporter = nodemailer.createTransport({
@@ -172,4 +171,20 @@ export const logoutService = async (req, res, id) => {
         status: 200,
         msg: "User logout succesfully",
     };
+};
+
+/* ----------  FIND USER BY TOKEN ----------  */
+export const findUserByTokenService = async (user) => {
+    const userFind = await User.findById(user._id.toString());
+    console.log(userFind);
+
+    if (userFind) {
+        userFind.password = undefined;
+        return {
+            status: 200,
+            msg: userFind,
+        };
+    }
+
+    return { status: 404, msg: "User not found" };
 };

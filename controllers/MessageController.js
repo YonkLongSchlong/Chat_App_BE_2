@@ -6,6 +6,7 @@ import {
     sendFileService,
     sendImageService,
     sendMessageService,
+    sendVideoService,
     shareMessageService,
 } from "../services/MessageService.js";
 
@@ -66,6 +67,28 @@ const sendFile = async (req, res) => {
         return res
             .status(500)
             .json({ Error: "Error in send file", msg: error.message });
+    }
+};
+
+/* ---------- SEND VIDEO ---------- */
+const sendVideo = async (req, res) => {
+    try {
+        const { receiverId } = req.params;
+        const user = req.user;
+        const files = req.files;
+        const { conversationName } = req.body;
+
+        const response = await sendVideoService(
+            user,
+            receiverId,
+            files,
+            conversationName
+        );
+        res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res
+            .status(500)
+            .json({ Error: "Error in send video", msg: error.message });
     }
 };
 
@@ -154,5 +177,6 @@ export {
     sendFile,
     sendImage,
     sendMessage,
+    sendVideo,
     shareMessage,
 };

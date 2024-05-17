@@ -29,3 +29,17 @@ export const uploadFileToS3 = (file, userId) => {
     };
     return s3.upload(s3_params).promise();
 };
+
+/* Function upload file lên s3 */
+export const uploadVideoToS3 = (file, userId) => {
+    const video = file.originalname.split(".");
+    const fileType = video[video.length - 1];
+    const fileName = `${userId}_${Date.now().toString()}.${fileType}`;
+    const s3_params = {
+        Bucket: process.env.S3_VIDEO_MESSAGE_BUCKET,
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+    };
+    return s3.upload(s3_params).promise();
+};

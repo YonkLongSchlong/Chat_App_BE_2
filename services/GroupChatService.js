@@ -2,7 +2,11 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { getReceiverSocketId, getUserSocketId, io } from "../utils/socket.js";
-import { uploadFileToS3, uploadImageToS3 } from "../utils/uploadToS3.js";
+import {
+    uploadFileToS3,
+    uploadImageToS3,
+    uploadVideoToS3,
+} from "../utils/uploadToS3.js";
 
 /* ---------- CREATE GROUP CHAT SERVICE ---------- */
 export const createGroupChatService = async (
@@ -272,7 +276,7 @@ export const sendGroupChatFilesService = async (
 };
 
 /* ---------- SEND VIDEO TO GROUP CHAT SERVICE ---------- */
-export const sendGroupChatVideoService = async (
+export const sendGroupChatVideosService = async (
     user,
     conversationId,
     files
@@ -311,7 +315,7 @@ export const sendGroupChatVideoService = async (
 
     const promiseUpload = [];
     files.forEach((file) => {
-        promiseUpload.push(uploadFileToS3(file, userId));
+        promiseUpload.push(uploadVideoToS3(file, userId));
     });
     const resultUpload = await Promise.all(promiseUpload).catch((error) => {
         throw new Error(error.message);
