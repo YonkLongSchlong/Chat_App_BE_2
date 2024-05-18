@@ -239,7 +239,7 @@ export const sendGroupChatFilesService = async (
     function saveMessage(result, index) {
         const newMessage = new Message({
             senderId: userId,
-            receiverId: conversationId,
+            conversationId: conversationId,
             messageType: "file",
             messageUrl: result.Location,
             message: files[index].originalname,
@@ -617,8 +617,8 @@ export const removeFromGroupChatService = async (
 
     const removeParticipantSocketId = getReceiverSocketId(participantId);
     if (removeParticipantSocketId) {
-        io.to(participantSocketIdAdd).emit("delConversation", conversation);
-        io.to(participantSocketIdAdd).emit("remove");
+        io.to(removeParticipantSocketId).emit("delConversation", conversation);
+        io.to(removeParticipantSocketId).emit("remove");
     }
 
     const userSocketId = getUserSocketId(userId);
@@ -630,6 +630,61 @@ export const removeFromGroupChatService = async (
             io.to(participantSocketId).emit("updateGroupChat", conversation);
         }
         io.to(participantSocketId).emit("notification");
+    });
+
+    return {
+        status: 200,
+        msg: conversation,
+    };
+};
+
+/* ---------- LEAVE GROUP  ---------- */
+export const leaveGroupChatService = async (user, conversationId) => {
+    const userId = user._id.toString();
+    let conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    }
+
+    if (conversation.admin.includes(userId)) {
+        conversation.participants = conversation.participants.filter(
+            (participant) => {
+                return participant.toString() !== userId;
+            }
+        );
+        conversation.admin = conversation.admin.filter((participant) => {
+            return participant.toString() !== userId;
+        });
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    } else {
+        conversation.participants = conversation.participants.filter(
+            (participant) => {
+                return participant.toString() !== userId;
+            }
+        );
+        await conversation
+            .save()
+            .then((conversation) => conversation.populate("participants"))
+            .then((conversation) => conversation);
+    }
+
+    const userSocketId = getUserSocketId(userId);
+    io.to(userSocketId).emit("delConversation", conversation);
+    conversation.participants.forEach((participant) => {
+        const participantSocketId = getReceiverSocketId(
+            participant._id.toString()
+        );
+        if (participantSocketId && participantSocketId !== userSocketId) {
+            io.to(participantSocketId).emit("updateGroupChat", conversation);
+            io.to(participantSocketId).emit("notification");
+        }
     });
 
     return {

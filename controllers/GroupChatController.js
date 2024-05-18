@@ -1,18 +1,19 @@
 import {
-	addAdminPermissonService,
-	addToGroupChatService,
-	closeGroupChatService,
-	createGroupChatService,
-	deleteGroupChatMessageService,
-	getGroupChatMessagesService,
-	getParticipantsFromGroupService,
-	removeFromGroupChatService,
-	revokeAdminPermissonService,
-	sendGroupChatFilesService,
-	sendGroupChatImagesService,
-	sendGroupChatMessageService,
-	sendGroupChatVideosService,
-	shareGroupChatMessageService,
+    addAdminPermissonService,
+    addToGroupChatService,
+    closeGroupChatService,
+    createGroupChatService,
+    deleteGroupChatMessageService,
+    getGroupChatMessagesService,
+    getParticipantsFromGroupService,
+    leaveGroupChatService,
+    removeFromGroupChatService,
+    revokeAdminPermissonService,
+    sendGroupChatFilesService,
+    sendGroupChatImagesService,
+    sendGroupChatMessageService,
+    sendGroupChatVideosService,
+    shareGroupChatMessageService,
 } from "../services/GroupChatService.js";
 
 /* ---------- CREATE GROUP CHAT ---------- */
@@ -198,6 +199,21 @@ export const removeFromGroupChat = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             Error: "Error in remove participant from group chat",
+            msg: error.message,
+        });
+    }
+};
+
+/* ---------- REMOVE PARTICIPANT FROM GROUP CHAT ---------- */
+export const leaveGroupChat = async (req, res) => {
+    try {
+        const user = req.user;
+        const { conversationId } = req.body;
+        const response = await leaveGroupChatService(user, conversationId);
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res.status(500).json({
+            Error: "Error in leave group chat",
             msg: error.message,
         });
     }
