@@ -176,7 +176,6 @@ export const logoutService = async (req, res, id) => {
 /* ----------  FIND USER BY TOKEN ----------  */
 export const findUserByTokenService = async (user) => {
     const userFind = await User.findById(user._id.toString());
-    console.log(userFind);
 
     if (userFind) {
         userFind.password = undefined;

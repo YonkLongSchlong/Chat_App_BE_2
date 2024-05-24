@@ -26,6 +26,7 @@ export const sendMessageService = async (user, receiverId, message) => {
             senderId: userId.toString(),
             conversationId: conversation._id,
             messageType: "text",
+            visibility: [receiverId, userId],
             message,
         });
 
@@ -61,6 +62,7 @@ export const sendMessageService = async (user, receiverId, message) => {
             senderId: userId.toString(),
             conversationId: conversation._id,
             messageType: "text",
+            visibility: [userId, receiverId],
             message,
         });
 
@@ -99,6 +101,7 @@ export const sendImageService = async (user, receiverId, files) => {
             messageType: "image",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: [user._id.toString(), receiverId],
         });
         return newMessage.save();
     }
@@ -216,6 +219,7 @@ export const sendFileService = async (user, receiverId, files) => {
             messageType: "file",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: [user._id.toString(), receiverId],
         });
         return newMessage.save();
     }
@@ -330,6 +334,7 @@ export const sendVideoService = async (user, receiverId, files) => {
             messageType: "video",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: [user._id.toString(), receiverId],
         });
         return newMessage.save();
     }
@@ -469,6 +474,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 conversationId: conversation._id,
                 messageType: "text",
                 message: message.message,
+                visibility: [userId, receiverId],
             });
         } else if (message.messageType == "image") {
             conversation = await Conversation.create({
@@ -481,6 +487,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "image",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         } else if (message.messageType == "file") {
             conversation = await Conversation.create({
@@ -493,6 +500,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "file",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         } else {
             conversation = await Conversation.create({
@@ -505,6 +513,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "video",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         }
 
@@ -541,6 +550,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 conversationId: conversation._id,
                 messageType: "text",
                 message: message.message,
+                visibility: [userId, receiverId],
             });
         } else if (message.messageType == "image") {
             newMessage = await Message.create({
@@ -549,6 +559,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "image",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         } else if (message.messageType == "file") {
             newMessage = await Message.create({
@@ -557,6 +568,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "file",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         } else {
             newMessage = await Message.create({
@@ -565,6 +577,7 @@ export const shareMessageService = async (user, receiverId, messageId) => {
                 messageType: "video",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: [userId, receiverId],
             });
         }
 
@@ -586,8 +599,8 @@ export const shareMessageService = async (user, receiverId, messageId) => {
     }
 };
 
-/* ---------- DELETE MESSAGE SERVICE (THU HỒI) ---------- */
-export const deleteMessageService = async (user, participantId, messageId) => {
+/* ---------- REVOKE MESSAGE SERVICE (THU HỒI) ---------- */
+export const revokeMessageService = async (user, participantId, messageId) => {
     const userId = user._id.toString();
 
     /* Tìm conversation của user và người nhận */
@@ -614,7 +627,7 @@ export const deleteMessageService = async (user, participantId, messageId) => {
     if (message.senderId.toString() !== userId) {
         return {
             status: 400,
-            msg: "You dont't have permission to delete this message",
+            msg: "You dont't have permission to revoke this message",
         };
     }
 
@@ -659,6 +672,78 @@ export const deleteMessageService = async (user, participantId, messageId) => {
     return {
         status: 200,
         msg: messageDocs,
+    };
+};
+
+/* ---------- DELETE MESSAGE SERVICE ---------- */
+export const deleteMessageService = async (user, messageId, participantId) => {
+    const userId = user._id.toString();
+
+    /* Tìm message theo Id */
+    const message = await Message.findById(messageId);
+    if (!message) {
+        return {
+            status: 404,
+            msg: "Message not found",
+        };
+    }
+
+    message.visibility = message.visibility.filter((id) => {
+        if (id.toString() !== userId) {
+            return id;
+        }
+    });
+
+    await message.save();
+
+    if (message.visibility.length == 0) {
+        const messageDocs = await Message.findByIdAndDelete(messageId);
+
+        let conversation = await Conversation.findOne({
+            participants: { $all: [userId, participantId], $size: 2 },
+        });
+
+        if (conversation.lastMessage.toString() == messageDocs._id.toString()) {
+            console.log("Here");
+            const messages = await Message.find({
+                conversationId: conversation._id,
+            });
+
+            if (messages.length > 1) {
+                conversation.lastMessage = messages[messages.length - 1];
+                await conversation.save();
+                conversation.participants.forEach((id) => {
+                    const userSocketId = getUserSocketId(id);
+                    if (userSocketId) io.emit("notification");
+                });
+            } else if (messages.length === 0) {
+                const conversationDocs = await Conversation.findByIdAndDelete(
+                    conversation._id
+                );
+                conversation.participants.forEach((id) => {
+                    const userSocketId = getUserSocketId(id);
+                    if (userSocketId)
+                        io.emit("delConversation", conversationDocs);
+                });
+            } else {
+                conversation.lastMessage = messages[0]._id;
+                await conversation.save();
+                conversation.participants.forEach((id) => {
+                    const userSocketId = getUserSocketId(id);
+                    if (userSocketId) io.emit("notification");
+                });
+            }
+        }
+
+        return {
+            status: 200,
+            msg: messageDocs,
+        };
+    }
+
+    return {
+        status: 200,
+        msg: message,
     };
 };
 

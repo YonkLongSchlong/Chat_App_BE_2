@@ -4,6 +4,7 @@ import {
     getConversation,
     getConversations,
     getMessages,
+    revokeMessage,
     sendFile,
     sendImage,
     sendMessage,
@@ -38,6 +39,7 @@ route.post("/share/:receiverId", verifyToken, shareMessage); // Chuyển tiếp 
 route.get("/:userToChatId", verifyToken, getMessages); // Lấy tin nhắn
 route.get("/conversation/:conversationId", verifyToken, getConversation); // Lấy 1 cuộc trò chuyện
 route.get("/conversations/get", verifyToken, getConversations); // Lấy tất cả cuộc trò chuyện
-route.post("/revoke/:participantId", verifyToken, deleteMessage); // Thu hồi tin nhắn
+route.post("/revoke/:participantId", verifyToken, revokeMessage); // Thu hồi tin nhắn
+route.post("/delete", verifyToken, deleteMessage); // Xóa tin nhắn
 
 export default route;

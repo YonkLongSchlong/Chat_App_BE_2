@@ -3,6 +3,7 @@ import {
     getConversationService,
     getConversationsService,
     getMessageService,
+    revokeMessageService,
     sendFileService,
     sendImageService,
     sendMessageService,
@@ -149,17 +150,36 @@ const getConversations = async (req, res) => {
     }
 };
 
-/* ---------- DELETE MESSAGE (THU HỒI) ---------- */
-const deleteMessage = async (req, res) => {
+/* ---------- REVOKE MESSAGE (THU HỒI) ---------- */
+const revokeMessage = async (req, res) => {
     try {
         const { participantId } = req.params;
         const { messageId } = req.body;
         const user = req.user;
 
-        const response = await deleteMessageService(
+        const response = await revokeMessageService(
             user,
             participantId,
             messageId
+        );
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res
+            .status(500)
+            .json({ Error: "Error in revoke message", msg: error.message });
+    }
+};
+
+/* ---------- DELETE MESSAGE ---------- */
+const deleteMessage = async (req, res) => {
+    try {
+        const { messageId, participantId } = req.body;
+        const user = req.user;
+
+        const response = await deleteMessageService(
+            user,
+            messageId,
+            participantId
         );
         return res.status(response.status).json(response.msg);
     } catch (error) {
@@ -174,6 +194,7 @@ export {
     getConversation,
     getConversations,
     getMessages,
+    revokeMessage,
     sendFile,
     sendImage,
     sendMessage,

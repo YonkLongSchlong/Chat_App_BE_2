@@ -92,6 +92,7 @@ export const sendGroupChatMessageService = async (
         conversationId: conversation._id,
         message: message,
         messageType: "text",
+        visibility: conversation.participants,
     });
 
     if (!newMessage) {
@@ -110,7 +111,7 @@ export const sendGroupChatMessageService = async (
             throw new Error(error.message);
         });
 
-        io.to(conversation._id.toString()).emit("newMessage", newMessage);
+        io.to(conversation._id.toString()).emit("newGroupMessage", newMessage);
         conversation.participants.forEach((participant) => {
             const participantSocketId = getReceiverSocketId(
                 participant._id.toString()
@@ -161,6 +162,7 @@ export const sendGroupChatImagesService = async (
             messageType: "image",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: conversation.participants,
         });
         return newMessage.save();
     }
@@ -185,7 +187,7 @@ export const sendGroupChatImagesService = async (
     conversation.lastMessage = lastMessage._id;
     await conversation.save();
 
-    io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+    io.to(conversation._id.toString()).emit("newGroupMessage", resultMessage);
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
@@ -243,6 +245,7 @@ export const sendGroupChatFilesService = async (
             messageType: "file",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: conversation.participants,
         });
         return newMessage.save();
     }
@@ -259,7 +262,7 @@ export const sendGroupChatFilesService = async (
     conversation.lastMessage = lastMessage._id;
     await conversation.save();
 
-    io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+    io.to(conversation._id.toString()).emit("newGroupMessage", resultMessage);
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
@@ -309,6 +312,7 @@ export const sendGroupChatVideosService = async (
             messageType: "video",
             messageUrl: result.Location,
             message: files[index].originalname,
+            visibility: conversation.participants,
         });
         return newMessage.save();
     }
@@ -333,7 +337,7 @@ export const sendGroupChatVideosService = async (
     conversation.lastMessage = lastMessage._id;
     await conversation.save();
 
-    io.to(conversation._id.toString()).emit("newMessage", resultMessage);
+    io.to(conversation._id.toString()).emit("newGroupMessage", resultMessage);
     conversation.participants.forEach((participant) => {
         const participantSocketId = getReceiverSocketId(
             participant._id.toString()
@@ -381,6 +385,7 @@ export const shareGroupChatMessageService = async (
                 conversationId: conversation._id.toString(),
                 messageType: "text",
                 message: message.message,
+                visibility: conversation.participants,
             });
         } else if (message.messageType == "image") {
             newMessage = await Message.create({
@@ -389,6 +394,7 @@ export const shareGroupChatMessageService = async (
                 messageType: "image",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: conversation.participants,
             });
         } else if (message.messageType == "file") {
             newMessage = await Message.create({
@@ -397,6 +403,7 @@ export const shareGroupChatMessageService = async (
                 messageType: "file",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: conversation.participants,
             });
         } else {
             newMessage = await Message.create({
@@ -405,6 +412,7 @@ export const shareGroupChatMessageService = async (
                 messageType: "video",
                 message: message.message,
                 messageUrl: message.messageUrl,
+                visibility: conversation.participants,
             });
         }
 
@@ -418,7 +426,7 @@ export const shareGroupChatMessageService = async (
                 io.to(participantSocketId).emit("notification");
             }
         });
-        io.to(conversation._id.toString()).emit(newMessage);
+        io.to(conversation._id.toString()).emit("newGroupMessage", newMessage);
 
         return {
             status: 200,
@@ -427,8 +435,8 @@ export const shareGroupChatMessageService = async (
     }
 };
 
-/* ---------- DELETE MESSAGE IN GROUP CHAT SERVICE (THU HỒI) ---------- */
-export const deleteGroupChatMessageService = async (
+/* ---------- REVOKE MESSAGE IN GROUP CHAT SERVICE (THU HỒI) ---------- */
+export const revokeGroupChatMessageService = async (
     user,
     conversationId,
     messageId
@@ -474,7 +482,7 @@ export const deleteGroupChatMessageService = async (
         conversation.lastMessage = undefined;
         await conversation.save();
 
-        io.to(conversation._id.toString()).emit("delMessage", delMessage);
+        io.to(conversation._id.toString()).emit("delGroupMessage", delMessage);
         conversation.participants.forEach((participant) => {
             const participantSocketId = getReceiverSocketId(
                 participant._id.toString()
@@ -489,7 +497,7 @@ export const deleteGroupChatMessageService = async (
         conversation.lastMessage = lastMessage._id;
         await conversation.save();
 
-        io.to(conversation._id.toString()).emit("delMessage", delMessage);
+        io.to(conversation._id.toString()).emit("delGroupMessage", delMessage);
         conversation.participants.forEach((participant) => {
             const participantSocketId = getReceiverSocketId(
                 participant._id.toString()
@@ -503,6 +511,53 @@ export const deleteGroupChatMessageService = async (
     return {
         status: 200,
         msg: delMessage,
+    };
+};
+
+/* ---------- DELETE MESSAGE IN GROUP CHAT SERVICE ---------- */
+export const deleteGroupChatMessageService = async (
+    user,
+    conversationId,
+    messageId
+) => {
+    const userId = user._id.toString();
+    let conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+        return {
+            status: 404,
+            msg: "Conversation not found",
+        };
+    } else if (conversation.status === 2) {
+        return {
+            status: 400,
+            msg: "Conversation has been closed",
+        };
+    } else if (!conversation.participants.includes(userId)) {
+        return {
+            status: 400,
+            msg: "You are not a member of this conversation",
+        };
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+        return {
+            status: 404,
+            msg: "Message not found",
+        };
+    }
+
+    message.visibility = message.visibility.filter((id) => {
+        if (id.toString() !== userId) return id;
+    });
+    await message.save();
+
+    const userSocketId = getUserSocketId(userId);
+    io.to(userSocketId).emit("delGroupMessage", message);
+
+    return {
+        status: 200,
+        msg: message,
     };
 };
 
@@ -537,7 +592,9 @@ export const addToGroupChatService = async (
     });
     await conversation
         .save()
-        .then((conversation) => conversation.populate("participants"))
+        .then((conversation) =>
+            conversation.populate("participants lastMessage")
+        )
         .then((conversation) => conversation);
 
     participantsId.forEach((participantId) => {
@@ -816,6 +873,11 @@ export const closeGroupChatService = async (user, conversationId) => {
         return {
             status: 404,
             msg: "Conversation not found",
+        };
+    } else if (!conversation.admin.includes(user._id)) {
+        return {
+            status: 400,
+            msg: "You do not have permission to close this group chat",
         };
     }
 

@@ -9,6 +9,7 @@ import {
     leaveGroupChatService,
     removeFromGroupChatService,
     revokeAdminPermissonService,
+    revokeGroupChatMessageService,
     sendGroupChatFilesService,
     sendGroupChatImagesService,
     sendGroupChatMessageService,
@@ -147,6 +148,25 @@ export const shareGroupChatMessage = async (req, res) => {
     }
 };
 
+/* ---------- REVOKE MESSAGE IN GROUP CHAT (THU HỒI) ---------- */
+export const revokeGroupChatMessage = async (req, res) => {
+    try {
+        const user = req.user;
+        const { conversationId, messageId } = req.body;
+        const response = await revokeGroupChatMessageService(
+            user,
+            conversationId,
+            messageId
+        );
+        return res.status(response.status).json(response.msg);
+    } catch (error) {
+        return res.status(500).json({
+            Error: "Error in revoke group chat message",
+            msg: error.message,
+        });
+    }
+};
+
 /* ---------- DELETE MESSAGE IN GROUP CHAT (THU HỒI) ---------- */
 export const deleteGroupChatMessage = async (req, res) => {
     try {
@@ -160,7 +180,7 @@ export const deleteGroupChatMessage = async (req, res) => {
         return res.status(response.status).json(response.msg);
     } catch (error) {
         return res.status(500).json({
-            Error: "Error in deleting group chat message",
+            Error: "Error in delete group chat message",
             msg: error.message,
         });
     }

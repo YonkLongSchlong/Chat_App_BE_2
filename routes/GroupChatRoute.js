@@ -10,6 +10,7 @@ import {
     leaveGroupChat,
     removeFromGroupChat,
     revokeAdminPermission,
+    revokeGroupChatMessage,
     sendGroupChatFiles,
     sendGroupChatImages,
     sendGroupChatMessage,
@@ -23,7 +24,8 @@ const route = express.Router();
 route.post("/create", verifyToken, createGroupChat); // Taọ group chat
 route.get("/messages/get/:conversationId", verifyToken, getGroupChatMessages); // Lấy tin nhắn
 route.post("/messages/send", verifyToken, sendGroupChatMessage); // Gửi tin nhắn
-route.post("/messages/revoke", verifyToken, deleteGroupChatMessage); // Thu hồi tin nhắn
+route.post("/messages/revoke", verifyToken, revokeGroupChatMessage); // Thu hồi tin nhắn
+route.post("/messages/delete", verifyToken, deleteGroupChatMessage); // Thu hồi tin nhắn
 route.post(
     "/messages/send/images",
     verifyToken,

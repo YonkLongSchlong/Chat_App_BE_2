@@ -24,6 +24,12 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        visibility: [
+            {
+                type: mongoose.Schema.ObjectId,
+                ref: "User",
+            },
+        ],
     },
     {
         timestamps: true,
