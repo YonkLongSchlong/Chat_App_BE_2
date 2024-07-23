@@ -20,7 +20,7 @@ route.post("/send/:receiverId", verifyToken, sendMessage); // Gửi tin nhắn
 route.post(
     "/send/image/:receiverId",
     verifyToken,
-    upload.array("images[]"),
+    upload.array("images[]", 10),
     sendImage
 ); // Gửi hình ảnh
 route.post(

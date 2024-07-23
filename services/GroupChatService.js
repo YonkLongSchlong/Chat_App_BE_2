@@ -20,7 +20,7 @@ export const createGroupChatService = async (
         name: conversationName,
         status: 1,
         conversationImage:
-            "https://essentialstuff.s3.ap-southeast-1.amazonaws.com/2352167.png",
+            "https://todo-avatar.s3.ap-southeast-1.amazonaws.com/2352167+(1).png",
         conversationType: "Group",
         admin: [userId],
     })

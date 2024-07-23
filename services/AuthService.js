@@ -139,9 +139,6 @@ export const loginService = async (res, phone, password) => {
         };
     }
 
-    user.isLoggedIn = 1;
-    await user.save();
-
     /* TẠO TOKEN  */
     const token = generateToken(user._id);
     res.cookie("jwt", token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });

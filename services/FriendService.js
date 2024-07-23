@@ -177,7 +177,7 @@ export const friendAcceptService = async (user, id, requesterId) => {
     const userSocketId = getUserSocketId(id);
     if (receiverSocketId) {
         io.to(receiverSocketId).emit("acceptedFriendRequest", user);
-        io.to(userSocketId).emit("acceptedFriendRequest", requester);
+        // io.to(userSocketId).emit("acceptedFriendRequest", requester);
     }
 
     return {
