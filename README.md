@@ -5,7 +5,7 @@ Bạn sẽ cần phải điền vào file .env trong project những thông tin 
 ![image](https://github.com/user-attachments/assets/0fcefd23-3237-44bf-a216-4c040f9aba2c)
 
 ```bash
-PORT                       // port dùng để gọi các api (chỉnh sửa giống với port trong BE project)
+PORT                       // port dùng để gọi các api (chỉnh sửa giống với port trong FE project)
 MONGO_URI                  // uri kết nối của [MongoDB Cluster](https://account.mongodb.com/account/login)
 JWT_SECRET                 // mật mã JWT
 ACCRESS_KEY                // access key của AWS IAMUSER (tài khoản cần được cấp quyền sử dụng dịch vụ S3)
@@ -53,7 +53,9 @@ Pandalo là một chat app giúp người dùng có thể dễ dàng liên lạc
 - AWS S3: Tạo các Bucket để lưu trữ hình ảnh, tập tin file, video các tin nhắn và avatar người dùng
 - MongoDB: database
 
-## Link video demo
+## FE Project
+https://github.com/YonkLongSchlong/Chat_App_Mobilee
 
+## Link video demo
 https://drive.google.com/file/d/1t9vCuor6AlqJqWyB5PqJx_n6G42PvXSO/view?usp=drive_link
 
